@@ -1,4 +1,5 @@
 from __future__ import annotations
+import argparse
 import re
 import subprocess
 from pathlib import Path
@@ -18,11 +19,15 @@ def write_version(version: str) -> None:
     VERSION_FILE.write_text(version + '\n', encoding='utf-8')
 
 
-def bump_patch(version: str) -> str:
+def bump_version(version: str, bump: str) -> str:
     m = re.match(r'^(\d+)\.(\d+)\.(\d+)$', version)
     if not m:
         return '0.1.0'
     major, minor, patch = map(int, m.groups())
+    if bump == 'major':
+        return f'{major + 1}.0.0'
+    if bump == 'minor':
+        return f'{major}.{minor + 1}.0'
     return f'{major}.{minor}.{patch + 1}'
 
 
@@ -31,8 +36,12 @@ def run(*args: str) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--bump', choices=['patch', 'minor', 'major'], default='patch')
+    args = parser.parse_args()
+
     current = read_version()
-    new_version = bump_patch(current)
+    new_version = bump_version(current, args.bump)
     write_version(new_version)
     run('git', 'add', 'VERSION')
     run('git', 'commit', '-m', f'chore: release v{new_version}')
