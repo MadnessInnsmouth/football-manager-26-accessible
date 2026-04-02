@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from models import (
-    Club, ClubRecordBook, EventType, Fixture, FinanceRecord, Formation, GameState, Infrastructure,
-    LeagueSeason, MatchEvent, MatchResult, Mentality, PlayStyle, Player, Position,
-    Stadium, Tactic, TrainingFacility, TransferListing, Trophy, TrophyType,
-    YouthAcademy, Competition, CompetitionType, LeagueTier,
+    Club, ClubRecordBook, Competition, CompetitionType, EventType, Fixture, FinanceRecord,
+    Formation, GameState, InboxMessage, IncomingTransferOffer, Infrastructure, LeagueSeason,
+    LeagueTier, MatchEvent, MatchResult, Mentality, MessageType, PlayStyle, Player,
+    Position, Stadium, Tactic, TrainingFacility, TransferListing, Trophy, TrophyType,
+    YouthAcademy,
 )
 
 
@@ -40,14 +41,30 @@ _ENUM_TYPES = {
     "EventType": EventType,
     "TrophyType": TrophyType,
     "CompetitionType": CompetitionType,
+    "MessageType": MessageType,
 }
 
 _DATACLASS_TYPES = {
-    "Player": Player, "Tactic": Tactic, "Stadium": Stadium, "TrainingFacility": TrainingFacility,
-    "YouthAcademy": YouthAcademy, "Infrastructure": Infrastructure, "Club": Club, "ClubRecordBook": ClubRecordBook,
-    "MatchEvent": MatchEvent, "MatchResult": MatchResult, "Fixture": Fixture,
-    "LeagueSeason": LeagueSeason, "FinanceRecord": FinanceRecord, "TransferListing": TransferListing,
-    "Trophy": Trophy, "Competition": Competition, "LeagueTier": LeagueTier, "GameState": GameState,
+    "Player": Player,
+    "Tactic": Tactic,
+    "Stadium": Stadium,
+    "TrainingFacility": TrainingFacility,
+    "YouthAcademy": YouthAcademy,
+    "Infrastructure": Infrastructure,
+    "Club": Club,
+    "ClubRecordBook": ClubRecordBook,
+    "MatchEvent": MatchEvent,
+    "MatchResult": MatchResult,
+    "Fixture": Fixture,
+    "LeagueSeason": LeagueSeason,
+    "FinanceRecord": FinanceRecord,
+    "TransferListing": TransferListing,
+    "IncomingTransferOffer": IncomingTransferOffer,
+    "InboxMessage": InboxMessage,
+    "Trophy": Trophy,
+    "Competition": Competition,
+    "LeagueTier": LeagueTier,
+    "GameState": GameState,
 }
 
 
@@ -111,16 +128,16 @@ def _apply_backward_compatibility(data):
     league_data = data.get("league")
     league = None
     if league_data:
-        league = LeagueSeason(
-            name=league_data.get("name", "League"), country=league_data.get("country", "England"), tier=league_data.get("tier", 5),
-            club_ids=league_data.get("club_ids", []), fixtures=[_fixture_from_legacy(fx) for fx in league_data.get("fixtures", [])],
-            current_week=league_data.get("current_week", 1), total_weeks=league_data.get("total_weeks", 38),
-        )
+        league = LeagueSeason(name=league_data.get("name", "League"), country=league_data.get("country", "England"), tier=league_data.get("tier", 5), club_ids=league_data.get("club_ids", []), fixtures=[_fixture_from_legacy(fx) for fx in league_data.get("fixtures", [])], current_week=league_data.get("current_week", 1), total_weeks=league_data.get("total_weeks", 38))
     state = GameState(
-        player_club_id=data.get("player_club_id", ""), clubs=clubs, league=league, season_number=data.get("season_number", 1),
-        transfer_list=[TransferListing(**t) for t in data.get("transfer_list", [])], finance_history=[FinanceRecord(**r) for r in data.get("finance_history", [])],
+        player_club_id=data.get("player_club_id", ""),
+        clubs=clubs,
+        league=league,
+        season_number=data.get("season_number", 1),
+        transfer_list=[TransferListing(**t) for t in data.get("transfer_list", [])],
+        finance_history=[FinanceRecord(**r) for r in data.get("finance_history", [])],
         season_over=data.get("season_over", False),
-        trophies=[Trophy(trophy_type=TrophyType[t.get("trophy_type", "LEAGUE_CHAMPION")], season=t.get("season", 1), league_name=t.get("league_name", "League"), tier=t.get("tier", 1)) for t in data.get("trophies", [])],
+        trophies=[_trophy_from_legacy(t) for t in data.get("trophies", [])],
         youth_players=[_player_from_legacy(p) for p in data.get("youth_players", [])],
         competitions=[_competition_from_legacy(c) for c in data.get("competitions", [])],
         league_system=[_league_tier_from_legacy(t) for t in data.get("league_system", [])],
@@ -128,12 +145,27 @@ def _apply_backward_compatibility(data):
         pending_messages=data.get("pending_messages", []),
         current_date=data.get("current_date", "2026-07-01"),
         country=data.get("country", league.country if league else "England"),
+        inbox=[_inbox_message_from_legacy(m) for m in data.get("inbox", [])],
+        incoming_transfer_offers=[_incoming_offer_from_legacy(o) for o in data.get("incoming_transfer_offers", [])],
     )
     return state.ensure_defaults()
 
 
 def _player_from_legacy(data):
-    return Player(id=data["id"], first_name=data["first_name"], last_name=data["last_name"], age=data["age"], nationality=data["nationality"], position=Position[data.get("position", "MID")], goalkeeping=data.get("goalkeeping", 1), defending=data.get("defending", 1), passing=data.get("passing", 1), shooting=data.get("shooting", 1), pace=data.get("pace", 1), physical=data.get("physical", 1), morale=data.get("morale", 14), fitness=data.get("fitness", 100), goals=data.get("goals", 0), assists=data.get("assists", 0), yellow_cards=data.get("yellow_cards", 0), red_cards=data.get("red_cards", 0), appearances=data.get("appearances", 0), career_goals=data.get("career_goals", data.get("goals", 0)), career_appearances=data.get("career_appearances", data.get("appearances", 0)), injured_weeks=data.get("injured_weeks", 0), suspended_matches=data.get("suspended_matches", 0), value=data.get("value", 0), wage=data.get("wage", 0), contract_years=data.get("contract_years", 2), season_joined=data.get("season_joined", 1), is_youth=data.get("is_youth", False), potential=data.get("potential", max(50, data.get("shooting", 1) * 4)), squad_role_expectation=data.get("squad_role_expectation", "Rotation"), minimum_acceptable_wage=data.get("minimum_acceptable_wage", 0), desired_wage=data.get("desired_wage", 0), desired_contract_length=data.get("desired_contract_length", 2), willingness_to_join=data.get("willingness_to_join", 50))
+    return Player(
+        id=data["id"], first_name=data["first_name"], last_name=data["last_name"], age=data["age"], nationality=data["nationality"],
+        position=Position[data.get("position", "MID")], goalkeeping=data.get("goalkeeping", 1), defending=data.get("defending", 1),
+        passing=data.get("passing", 1), shooting=data.get("shooting", 1), pace=data.get("pace", 1), physical=data.get("physical", 1),
+        morale=data.get("morale", 14), fitness=data.get("fitness", 100), goals=data.get("goals", 0), assists=data.get("assists", 0),
+        yellow_cards=data.get("yellow_cards", 0), red_cards=data.get("red_cards", 0), appearances=data.get("appearances", 0),
+        career_goals=data.get("career_goals", data.get("goals", 0)), career_appearances=data.get("career_appearances", data.get("appearances", 0)),
+        injured_weeks=data.get("injured_weeks", 0), suspended_matches=data.get("suspended_matches", 0), value=data.get("value", 0), wage=data.get("wage", 0),
+        contract_years=data.get("contract_years", 2), season_joined=data.get("season_joined", 1), is_youth=data.get("is_youth", False),
+        potential=data.get("potential", max(50, data.get("shooting", 1) * 4)), squad_role_expectation=data.get("squad_role_expectation", "Rotation"),
+        minimum_acceptable_wage=data.get("minimum_acceptable_wage", 0), desired_wage=data.get("desired_wage", 0), desired_contract_length=data.get("desired_contract_length", 2),
+        willingness_to_join=data.get("willingness_to_join", 50), shortlisted=data.get("shortlisted", False), scouted=data.get("scouted", False),
+        scouting_notes=data.get("scouting_notes", ""), transfer_listed=data.get("transfer_listed", False), asking_price_override=data.get("asking_price_override", 0),
+    )
 
 
 def _tactic_from_legacy(data):
@@ -144,21 +176,10 @@ def _records_from_legacy(data):
     if not data:
         return ClubRecordBook()
     return ClubRecordBook(
-        highest_league_finish=data.get("highest_league_finish", 999),
-        most_points=data.get("most_points", 0),
-        most_goals_scored=data.get("most_goals_scored", 0),
-        best_goal_difference=data.get("best_goal_difference", -999),
-        biggest_win=data.get("biggest_win", "None"),
-        biggest_defeat=data.get("biggest_defeat", "None"),
-        highest_scoring_match=data.get("highest_scoring_match", "None"),
-        longest_winning_streak=data.get("longest_winning_streak", 0),
-        longest_unbeaten_streak=data.get("longest_unbeaten_streak", 0),
-        all_time_top_scorer=data.get("all_time_top_scorer", "None"),
-        all_time_top_scorer_goals=data.get("all_time_top_scorer_goals", 0),
-        most_appearances_player=data.get("most_appearances_player", "None"),
-        most_appearances=data.get("most_appearances", 0),
-        current_winning_streak=data.get("current_winning_streak", 0),
-        current_unbeaten_streak=data.get("current_unbeaten_streak", 0),
+        highest_league_finish=data.get("highest_league_finish", 999), most_points=data.get("most_points", 0), most_goals_scored=data.get("most_goals_scored", 0), best_goal_difference=data.get("best_goal_difference", -999),
+        biggest_win=data.get("biggest_win", "None"), biggest_defeat=data.get("biggest_defeat", "None"), highest_scoring_match=data.get("highest_scoring_match", "None"), longest_winning_streak=data.get("longest_winning_streak", 0),
+        longest_unbeaten_streak=data.get("longest_unbeaten_streak", 0), all_time_top_scorer=data.get("all_time_top_scorer", "None"), all_time_top_scorer_goals=data.get("all_time_top_scorer_goals", 0),
+        most_appearances_player=data.get("most_appearances_player", "None"), most_appearances=data.get("most_appearances", 0), current_winning_streak=data.get("current_winning_streak", 0), current_unbeaten_streak=data.get("current_unbeaten_streak", 0),
     )
 
 
@@ -170,10 +191,7 @@ def _infrastructure_from_legacy(data):
         training_data = data.get("training", {})
         youth_data = data.get("youth", {})
         return Infrastructure(
-            stadium=Stadium(
-                seating_level=stadium_data.get("seating_level", 1), pitch_quality=stadium_data.get("pitch_quality", 3), facilities_level=stadium_data.get("facilities_level", 3),
-                club_shop_level=stadium_data.get("club_shop_level", 0), cafe_level=stadium_data.get("cafe_level", 0), hospitality_level=stadium_data.get("hospitality_level", 0), parking_level=stadium_data.get("parking_level", 1), fan_zone_level=stadium_data.get("fan_zone_level", 0),
-            ),
+            stadium=Stadium(seating_level=stadium_data.get("seating_level", 1), pitch_quality=stadium_data.get("pitch_quality", 3), facilities_level=stadium_data.get("facilities_level", 3), club_shop_level=stadium_data.get("club_shop_level", 0), cafe_level=stadium_data.get("cafe_level", 0), hospitality_level=stadium_data.get("hospitality_level", 0), parking_level=stadium_data.get("parking_level", 1), fan_zone_level=stadium_data.get("fan_zone_level", 0)),
             training=TrainingFacility(level=training_data.get("level", 3), intensity=training_data.get("intensity", 3), medical_level=training_data.get("medical_level", 3), training_ground_level=training_data.get("training_ground_level", 3), sports_science_level=training_data.get("sports_science_level", 2)),
             youth=YouthAcademy(level=youth_data.get("level", 3), recruitment_level=youth_data.get("recruitment_level", 3), scouting_level=youth_data.get("scouting_level", 3)),
         )
@@ -181,7 +199,16 @@ def _infrastructure_from_legacy(data):
 
 
 def _club_from_legacy(data):
-    club = Club(id=data["id"], name=data["name"], short_name=data["short_name"], country=data["country"], league_tier=data["league_tier"], reputation=data.get("reputation", 20), budget=data.get("budget", 0), wage_budget_weekly=data.get("wage_budget_weekly", 0), stadium_name=data.get("stadium_name", "Stadium"), stadium_capacity=data.get("stadium_capacity", 3000), tactic=_tactic_from_legacy(data.get("tactic", {})), infrastructure=_infrastructure_from_legacy(data.get("infrastructure", {})), is_player_club=data.get("is_player_club", False), wins=data.get("wins", 0), draws=data.get("draws", 0), losses=data.get("losses", 0), goals_for=data.get("goals_for", 0), goals_against=data.get("goals_against", 0), sponsor_income_weekly=data.get("sponsor_income_weekly", 0), ticket_price=data.get("ticket_price", 10), debt=data.get("debt", 0), max_debt=data.get("max_debt", 100000), transfer_budget=data.get("transfer_budget", 0), balance=data.get("balance", data.get("budget", 0)), weekly_wage_commitment=data.get("weekly_wage_commitment", 0), manager_name=data.get("manager_name", "Manager"), records=_records_from_legacy(data.get("records", {})), selected_squad_ids=data.get("selected_squad_ids", []))
+    club = Club(
+        id=data["id"], name=data["name"], short_name=data["short_name"], country=data["country"], league_tier=data["league_tier"], reputation=data.get("reputation", 20),
+        budget=data.get("budget", 0), wage_budget_weekly=data.get("wage_budget_weekly", 0), stadium_name=data.get("stadium_name", "Stadium"), stadium_capacity=data.get("stadium_capacity", 3000),
+        tactic=_tactic_from_legacy(data.get("tactic", {})), infrastructure=_infrastructure_from_legacy(data.get("infrastructure", {})), is_player_club=data.get("is_player_club", False), wins=data.get("wins", 0),
+        draws=data.get("draws", 0), losses=data.get("losses", 0), goals_for=data.get("goals_for", 0), goals_against=data.get("goals_against", 0), sponsor_income_weekly=data.get("sponsor_income_weekly", 0),
+        ticket_price=data.get("ticket_price", 10), debt=data.get("debt", 0), max_debt=data.get("max_debt", 100000), transfer_budget=data.get("transfer_budget", 0),
+        balance=data.get("balance", data.get("budget", 0)), weekly_wage_commitment=data.get("weekly_wage_commitment", 0), manager_name=data.get("manager_name", "Manager"),
+        records=_records_from_legacy(data.get("records", {})), selected_squad_ids=data.get("selected_squad_ids", []), shortlist_player_ids=data.get("shortlist_player_ids", []),
+        transfer_spending_limit=data.get("transfer_spending_limit", data.get("transfer_budget", 0)), sold_players_income_season=data.get("sold_players_income_season", 0), bought_players_spend_season=data.get("bought_players_spend_season", 0),
+    )
     club.players = [_player_from_legacy(p) for p in data.get("players", [])]
     club.youth_team = [_player_from_legacy(p) for p in data.get("youth_team", [])]
     return club
@@ -200,11 +227,50 @@ def _fixture_from_legacy(data):
 
 
 def _competition_from_legacy(data):
-    return Competition(id=data.get("id", "comp"), name=data.get("name", "Competition"), competition_type=CompetitionType[data.get("competition_type", "LEAGUE")], country=data.get("country", "England"), level=data.get("level", "domestic"), tier=data.get("tier", 1), club_ids=data.get("club_ids", []), fixtures=[_fixture_from_legacy(f) for f in data.get("fixtures", [])], current_round=data.get("current_round", ""), active=data.get("active", True), winner_club_id=data.get("winner_club_id", ""), qualification_places=data.get("qualification_places", 0))
+    ctype = data.get("competition_type", "LEAGUE")
+    if ctype in CompetitionType.__members__:
+        enum_type = CompetitionType[ctype]
+    else:
+        try:
+            enum_type = CompetitionType(ctype)
+        except Exception:
+            enum_type = CompetitionType.LEAGUE
+    return Competition(
+        id=data.get("id", "comp"), name=data.get("name", "Competition"), competition_type=enum_type, country=data.get("country", "England"), level=data.get("level", "domestic"), tier=data.get("tier", 1),
+        club_ids=data.get("club_ids", []), fixtures=[_fixture_from_legacy(f) for f in data.get("fixtures", [])], current_round=data.get("current_round", ""), active=data.get("active", True), winner_club_id=data.get("winner_club_id", ""),
+        runner_up_club_id=data.get("runner_up_club_id", ""), qualification_places=data.get("qualification_places", 0), rounds=data.get("rounds", []), qualified_club_ids=data.get("qualified_club_ids", []),
+        entry_rules=data.get("entry_rules", {}), slot_rules=data.get("slot_rules", {}), scheduled_weeks=data.get("scheduled_weeks", []), draw_state=data.get("draw_state", {}), draw_rules=data.get("draw_rules", {}),
+    )
 
 
 def _league_tier_from_legacy(data):
     return LeagueTier(country=data.get("country", "England"), name=data.get("name", "League"), tier=data.get("tier", 5), club_ids=data.get("club_ids", []), promotion_places=data.get("promotion_places", 0), playoff_places=data.get("playoff_places", []), relegation_places=data.get("relegation_places", 0))
+
+
+def _inbox_message_from_legacy(data):
+    msg_type = data.get("message_type", "SYSTEM")
+    if isinstance(msg_type, str):
+        msg_type = MessageType[msg_type] if msg_type in MessageType.__members__ else MessageType.SYSTEM
+    return InboxMessage(id=data.get("id", "msg"), week=data.get("week", 1), season=data.get("season", 1), subject=data.get("subject", "Message"), body=data.get("body", ""), message_type=msg_type, read=data.get("read", False), related_player_id=data.get("related_player_id", ""), related_club_id=data.get("related_club_id", ""), action_required=data.get("action_required", False), metadata=data.get("metadata", {}))
+
+
+def _incoming_offer_from_legacy(data):
+    return IncomingTransferOffer(id=data.get("id", "offer"), player_id=data.get("player_id", ""), buyer_club_id=data.get("buyer_club_id", ""), seller_club_id=data.get("seller_club_id", ""), fee=data.get("fee", 0), week_created=data.get("week_created", 1), status=data.get("status", "pending"))
+
+
+def _trophy_from_legacy(data):
+    ttype = data.get("trophy_type", "LEAGUE_CHAMPION")
+    if isinstance(ttype, str):
+        if ttype in TrophyType.__members__:
+            trophy_type = TrophyType[ttype]
+        else:
+            try:
+                trophy_type = TrophyType(ttype)
+            except Exception:
+                trophy_type = TrophyType.LEAGUE_CHAMPION
+    else:
+        trophy_type = TrophyType.LEAGUE_CHAMPION
+    return Trophy(trophy_type=trophy_type, season=data.get("season", 1), league_name=data.get("league_name", "League"), tier=data.get("tier", 1), competition_id=data.get("competition_id", ""), country=data.get("country", ""), metadata=data.get("metadata", {}))
 
 
 def load_game():

@@ -1,9 +1,9 @@
-"""Accessible GUI for Football Manager 26 - wxPython + NVDA screen reader support."""
+﻿"""Accessible GUI for Football Manager 26 - wxPython + NVDA screen reader support."""
 
 import wx
 
 from speech import speak, priority_announce
-from models import EventType, Club, Position
+from models import EventType, Club, Position, MessageType
 from database import LEAGUE_DATA, generate_player
 from services.game_service import service as game_engine
 from services.network_service import service as network_service, DEFAULT_PORT
@@ -38,6 +38,7 @@ class FootballManagerApp(wx.Frame):
         self._transfer_market_items = []
         self._last_content_focus = None
         self._match_lines = []
+        self._nav_stack = []
         self.panel = wx.Panel(self)
         self.scroll = wx.ScrolledWindow(self.panel, style=wx.VSCROLL)
         self.scroll.SetScrollRate(0, 20)
@@ -51,10 +52,34 @@ class FootballManagerApp(wx.Frame):
         self.status_bar.SetBackgroundColour(self.SURFACE_BG)
         self.status_bar.SetForegroundColour(self.FG)
         self.set_status("Welcome to Football Manager 26 - Accessible Edition")
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
         self.Centre()
         self.Show()
-        self.show_main_menu()
+        self.show_main_menu(track=False)
         speak("Football Manager 26 Accessible Edition. Press Tab to navigate, Enter to activate buttons.", interrupt=False)
+
+    def _on_char_hook(self, event):
+        key = event.GetKeyCode()
+        focused = wx.Window.FindFocus()
+        if key == wx.WXK_ESCAPE:
+            if isinstance(focused, wx.TextCtrl) and focused.IsEditable():
+                event.Skip()
+                return
+            self.go_back()
+            return
+        event.Skip()
+
+    def _push_nav(self, screen_callable):
+        if not self._nav_stack or self._nav_stack[-1] != screen_callable:
+            self._nav_stack.append(screen_callable)
+
+    def go_back(self):
+        if len(self._nav_stack) > 1:
+            self._nav_stack.pop()
+            previous = self._nav_stack[-1]
+            previous(track=False)
+        else:
+            self.show_main_menu(track=False)
 
     def _roster_payload(self, club):
         payload = []
@@ -198,9 +223,10 @@ class FootballManagerApp(wx.Frame):
         dt = game_engine.get_current_date(gs)
         window = self._native_transfer_window() or game_engine.get_transfer_window_status(gs)
         open_text = "OPEN" if window["open"] else "CLOSED"
+        unread = game_engine.get_unread_inbox_count(gs)
         box = self._add_group(
             "Season Header",
-            f"Country: {club.country}    Season: {game_engine.get_season_label(gs)}    Date: {dt.strftime('%d %B %Y')}    Week: {gs.league.current_week}/{gs.league.total_weeks}",
+            f"Country: {club.country}    Season: {game_engine.get_season_label(gs)}    Date: {dt.strftime('%d %B %Y')}    Week: {gs.league.current_week}/{gs.league.total_weeks}    Unread Inbox: {unread}",
         )
         badge = wx.StaticText(self.scroll, label=f"Transfer Window: {open_text}")
         badge.SetForegroundColour(self.SUCCESS if window["open"] else self.WARNING)
@@ -215,23 +241,22 @@ class FootballManagerApp(wx.Frame):
         return ctrl
 
     def _make_live_commentary_surface(self):
-        panel = wx.Panel(self.scroll)
-        panel.SetBackgroundColour(self.SURFACE_BG)
         outer = wx.BoxSizer(wx.VERTICAL)
-        panel.SetSizer(outer)
-        label = wx.StaticText(panel, label="Live Match Commentary")
+        label = wx.StaticText(self.scroll, label="Live Match Commentary")
         label.SetForegroundColour(self.ACCENT)
         label.SetFont(wx.Font(16, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
         outer.Add(label, 0, wx.ALL, 8)
-        self.match_commentary_list = wx.ListBox(panel, style=wx.LB_SINGLE)
+        self.match_commentary_list = wx.ListBox(self.scroll, style=wx.LB_SINGLE)
         self._style_control(self.match_commentary_list, surface=True)
         self.match_commentary_list.SetMinSize((-1, 320))
         self.match_commentary_list.SetName("Live Match Commentary")
         outer.Add(self.match_commentary_list, 1, wx.EXPAND | wx.ALL, 8)
-        panel.SetName("Live Match Centre")
-        return panel
+        return outer
 
-    def show_main_menu(self):
+    def show_main_menu(self, track=True):
+        if track:
+            self._nav_stack = []
+            self._push_nav(self.show_main_menu)
         self.clear()
         self.set_status("Welcome Screen")
         self.sizer.AddStretchSpacer()
@@ -262,6 +287,7 @@ class FootballManagerApp(wx.Frame):
             wx.CallAfter(first.SetFocus)
 
     def show_settings_placeholder(self):
+        self._push_nav(self.show_settings_placeholder)
         self.clear()
         self.set_status("Settings")
         self._add_section_heading("Settings", "Placeholder for future game settings, audio, controls, multiplayer and accessibility options.")
@@ -283,6 +309,7 @@ class FootballManagerApp(wx.Frame):
         wx.CallAfter(info.SetFocus)
 
     def show_quick_multiplayer(self):
+        self._push_nav(self.show_quick_multiplayer)
         self.clear()
         self.set_status("Quick Multiplayer Match")
         self._add_section_heading("Quick Multiplayer Match", "Basic local multiplayer foundation for quick head-to-head play.")
@@ -319,6 +346,7 @@ class FootballManagerApp(wx.Frame):
         wx.CallAfter(self.mp_club_one.SetFocus)
 
     def show_remote_multiplayer(self):
+        self._push_nav(self.show_remote_multiplayer)
         self.clear()
         self.set_status("Remote Quick Multiplayer")
         self._add_section_heading("Remote Quick Multiplayer", "Host or join a one versus one match over the internet.")
@@ -348,6 +376,7 @@ class FootballManagerApp(wx.Frame):
         wx.CallAfter(host_btn.SetFocus)
 
     def show_host_remote_match(self):
+        self._push_nav(self.show_host_remote_match)
         self.clear()
         self.set_status("Host Remote Match")
         self._add_section_heading("Host Remote Match", "Create a direct one-versus-one match session")
@@ -388,6 +417,7 @@ class FootballManagerApp(wx.Frame):
         self.show_host_wait_screen(session, host_club, country)
 
     def show_host_wait_screen(self, session, host_club, country):
+        self._push_nav(lambda track=False: self.show_host_wait_screen(session, host_club, country))
         self.clear()
         self.set_status("Waiting for Guest")
         self._add_section_heading("Waiting for Guest", "Share this session code with your friend and wait for them to connect.")
@@ -423,6 +453,7 @@ class FootballManagerApp(wx.Frame):
         self._host_poll_timer = wx.CallLater(300, self._poll_host_session)
 
     def show_remote_host_lobby(self):
+        self._push_nav(self.show_remote_host_lobby)
         self.clear()
         self.set_status("Remote Match Lobby")
         self._add_section_heading("Remote Match Lobby", "Connected. Ready to start the quick match.")
@@ -461,6 +492,7 @@ class FootballManagerApp(wx.Frame):
         self._show_remote_result(payload, host=True)
 
     def show_join_remote_match(self):
+        self._push_nav(self.show_join_remote_match)
         self.clear()
         self.set_status("Join Remote Match")
         self._add_section_heading("Join Remote Match", "Connect to a host using IP and port")
@@ -501,6 +533,7 @@ class FootballManagerApp(wx.Frame):
         self.show_join_wait_screen(club_name)
 
     def show_join_wait_screen(self, club_name):
+        self._push_nav(lambda track=False: self.show_join_wait_screen(club_name))
         self.clear()
         self.set_status("Connected to Host")
         self._add_section_heading("Connected to Host", "Waiting for the host to start the match")
@@ -521,6 +554,7 @@ class FootballManagerApp(wx.Frame):
         self._guest_poll_timer = wx.CallLater(300, self._poll_guest_wait)
 
     def _show_remote_result(self, payload, host=False):
+        self._push_nav(lambda track=False: self._show_remote_result(payload, host=host))
         self.clear()
         self.set_status("Remote Match Result")
         self._add_section_heading("Remote Match Result", "Completed remote quick match")
@@ -604,6 +638,7 @@ class FootballManagerApp(wx.Frame):
             self.show_main_menu()
 
     def show_club_creation(self):
+        self._push_nav(self.show_club_creation)
         self.clear()
         self.set_status("Create Your Club")
         self._add_section_heading("Create Your Club", "Enter your club details. Use Tab to move between fields.")
@@ -657,7 +692,7 @@ class FootballManagerApp(wx.Frame):
     def _update_league_info(self):
         country = self.choice_country.GetString(self.choice_country.GetSelection())
         profile = game_engine.get_league_financial_profile(country)
-        symbol = "£" if profile["currency"] == "GBP" else "€"
+        symbol = "Â£" if profile["currency"] == "GBP" else "â‚¬"
         self.lbl_league_info.SetLabel(
             f"{profile['league_name']} (Tier {profile['tier']}) - Currency: {profile['currency']} - "
             f"Average budget: {symbol}{profile['avg_budget']:,} - Weekly wage benchmark: {symbol}{profile['avg_wage']:,}"
@@ -673,17 +708,20 @@ class FootballManagerApp(wx.Frame):
             return
         self.game_state = game_engine.create_new_game(name, short, country, stadium)
         self.autosave()
-        self.show_dashboard()
+        self._nav_stack = []
+        self.show_dashboard(track=True)
 
-    def show_dashboard(self):
+    def show_dashboard(self, track=True):
+        if track:
+            self._push_nav(self.show_dashboard)
         self.clear()
         gs = self.game_state
         club = gs.clubs[gs.player_club_id]
         table = game_engine.get_league_table(gs)
         position = next((i + 1 for i, c in enumerate(table) if c.id == gs.player_club_id), 0)
-        self.set_status(f"Dashboard - {club.name}")
+        self.set_status(f"Main Menu - {club.name}")
         self._top_header()
-        self._add_section_heading(f"{club.name} - Dashboard", "Main club overview and main navigation.")
+        self._add_section_heading(f"{club.name} - Main Menu", "Main club overview and main navigation.")
         box = self._add_group(
             "Club Overview",
             f"League: {gs.league.name} - Position: {position} of {len(table)}\nBudget Available: {club.budget:,} | Transfer Budget: {club.transfer_budget:,} | Weekly Wages: {club.total_wages:,}",
@@ -691,11 +729,12 @@ class FootballManagerApp(wx.Frame):
         grid = wx.GridSizer(cols=3, vgap=10, hgap=10)
         for label, handler in [
             ("&Club", self.show_club_hub),
+            ("&Inbox", self.show_inbox),
             ("&Squad", self.show_squad),
-            ("&Match Day", self.show_match_day),
-            ("Match &Results", self.show_results),
             ("&Transfer Market", self.show_transfers),
+            ("&Match Day", self.show_match_day),
             ("&League Table", self.show_league_table),
+            ("&Competitions", self.show_competitions_overview),
             ("&Save Game", self._manual_save),
             ("&Welcome Screen", self.show_main_menu),
         ]:
@@ -711,13 +750,102 @@ class FootballManagerApp(wx.Frame):
         self.autosave()
         wx.MessageBox(f"Game saved to {save_system.get_save_path()}", "Save Game", wx.OK | wx.ICON_INFORMATION)
 
-    def _simple_back(self, label="&Back to Dashboard", handler=None):
+    def _simple_back(self, label="&Back to Main Menu", handler=None):
         btn = wx.Button(self.scroll, label=label)
         self._style_control(btn)
         btn.Bind(wx.EVT_BUTTON, lambda e: (handler() if handler else self.show_dashboard()))
         self.sizer.Add(btn, 0, wx.ALL, 10)
 
+    def show_inbox(self):
+        self._push_nav(self.show_inbox)
+        self.clear()
+        self._top_header()
+        self._add_section_heading("Inbox", "Messages from scouts, finances, transfers and competitions")
+        box = self._add_group("Club Inbox", "Open a message to read more or respond to transfer offers.")
+        self.inbox_list = wx.ListBox(self.scroll)
+        self._style_control(self.inbox_list, surface=True)
+        self._inbox_items = list(self.game_state.inbox)
+        for msg in self._inbox_items:
+            prefix = "Unread" if not msg.read else "Read"
+            self.inbox_list.Append(f"{prefix} - Week {msg.week} - {msg.message_type.value} - {msg.subject}")
+        box.Add(self.inbox_list, 1, wx.EXPAND | wx.ALL, 10)
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        open_btn = wx.Button(self.scroll, label="&Open Message")
+        self._style_control(open_btn)
+        open_btn.Bind(wx.EVT_BUTTON, self._open_selected_inbox_message)
+        row.Add(open_btn, 0, wx.ALL, 5)
+        box.Add(row, 0, wx.ALL, 5)
+        self._simple_back()
+        self.scroll.Layout()
+        self.scroll.FitInside()
+
+    def _open_selected_inbox_message(self, event=None):
+        idx = self.inbox_list.GetSelection()
+        if idx == wx.NOT_FOUND or idx < 0 or idx >= len(self._inbox_items):
+            return
+        msg = self._inbox_items[idx]
+        msg.read = True
+        if msg.action_required and msg.metadata.get("offer_id"):
+            self.show_transfer_offer_message(msg)
+        else:
+            self.show_inbox_message_detail(msg)
+
+    def show_inbox_message_detail(self, msg):
+        self._push_nav(lambda track=False: self.show_inbox_message_detail(msg))
+        self.clear()
+        self._top_header()
+        self._add_section_heading(msg.subject, msg.message_type.value)
+        box = self._add_group("Message", f"Week {msg.week} - Season {msg.season}")
+        text = self._make_readable_text(msg.body, min_height=320)
+        box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
+        self._simple_back("&Back to Inbox", self.show_inbox)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+        wx.CallAfter(text.SetFocus)
+
+    def show_transfer_offer_message(self, msg):
+        offer_id = msg.metadata.get("offer_id")
+        offer = next((o for o in self.game_state.incoming_transfer_offers if o.id == offer_id and o.status == "pending"), None)
+        self._push_nav(lambda track=False: self.show_transfer_offer_message(msg))
+        self.clear()
+        self._top_header()
+        self._add_section_heading(msg.subject, "Incoming transfer offer")
+        box = self._add_group("Offer Review", "Accept or reject the incoming offer.")
+        text = self._make_readable_text(msg.body, min_height=220)
+        box.Add(text, 0, wx.EXPAND | wx.ALL, 10)
+        if offer:
+            player = next((p for p in self.game_state.clubs[self.game_state.player_club_id].players if p.id == offer.player_id), None)
+            buyer = self.game_state.clubs.get(offer.buyer_club_id)
+            details = self._make_readable_text(
+                f"Player: {player.full_name if player else 'Unknown'}\n"
+                f"Buying Club: {buyer.name if buyer else 'Unknown'}\n"
+                f"Bid: {offer.fee:,}",
+                min_height=180,
+            )
+            box.Add(details, 0, wx.EXPAND | wx.ALL, 10)
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            accept_btn = wx.Button(self.scroll, label="&Accept Offer")
+            self._style_control(accept_btn)
+            accept_btn.Bind(wx.EVT_BUTTON, lambda e: self._respond_to_offer(offer.id, True))
+            row.Add(accept_btn, 0, wx.ALL, 5)
+            reject_btn = wx.Button(self.scroll, label="&Reject Offer")
+            self._style_control(reject_btn)
+            reject_btn.Bind(wx.EVT_BUTTON, lambda e: self._respond_to_offer(offer.id, False))
+            row.Add(reject_btn, 0, wx.ALL, 5)
+            box.Add(row, 0, wx.ALL, 5)
+        self._simple_back("&Back to Inbox", self.show_inbox)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+
+    def _respond_to_offer(self, offer_id, accept):
+        success, msg = game_engine.respond_to_transfer_offer(self.game_state, offer_id, accept)
+        if success:
+            self.autosave()
+        wx.MessageBox(msg, "Transfer Offer", wx.OK | wx.ICON_INFORMATION)
+        self.show_inbox()
+
     def show_club_hub(self):
+        self._push_nav(self.show_club_hub)
         self.clear()
         self._top_header()
         self._add_section_heading("Club", "Trophies, records, finances and infrastructure")
@@ -737,6 +865,7 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
 
     def show_finance_screen(self):
+        self._push_nav(self.show_finance_screen)
         self.clear()
         self._top_header()
         club = self.game_state.clubs[self.game_state.player_club_id]
@@ -745,18 +874,21 @@ class FootballManagerApp(wx.Frame):
         text = self._make_readable_text(
             f"Current Overall Budget: {club.budget:,}\n"
             f"Current Transfer Budget: {club.transfer_budget:,}\n"
+            f"Transfer Spending Limit: {club.transfer_spending_limit:,}\n"
             f"Weekly Wage Budget: {club.wage_budget_weekly:,}\n"
             f"Current Weekly Wages: {club.total_wages:,}\n"
             f"Balance: {club.balance:,}\n"
-            f"Debt: {club.debt:,}\n",
-            min_height=220,
+            f"Debt: {club.debt:,}\n"
+            f"Players Sold This Season: {club.sold_players_income_season:,}\n"
+            f"Players Bought This Season: {club.bought_players_spend_season:,}\n",
+            min_height=240,
         )
         box.Add(text, 0, wx.EXPAND | wx.ALL, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
         lbl = wx.StaticText(self.scroll, label="Set Transfer Spending Limit:")
         lbl.SetForegroundColour(self.FG)
         row.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        self.finance_limit = wx.SpinCtrl(self.scroll, min=0, max=max(1000, club.budget * 3), initial=int(club.transfer_budget))
+        self.finance_limit = wx.SpinCtrl(self.scroll, min=0, max=max(1000, club.budget * 3), initial=int(club.transfer_spending_limit or club.transfer_budget))
         self._style_control(self.finance_limit)
         row.Add(self.finance_limit, 0, wx.RIGHT, 8)
         save_btn = wx.Button(self.scroll, label="&Apply Limit")
@@ -771,12 +903,13 @@ class FootballManagerApp(wx.Frame):
 
     def _apply_finance_limit(self, event):
         club = self.game_state.clubs[self.game_state.player_club_id]
-        club.transfer_budget = max(0, min(int(self.finance_limit.GetValue()), int(club.budget)))
+        club.transfer_spending_limit = max(0, min(int(self.finance_limit.GetValue()), int(club.budget)))
         self.autosave()
-        wx.MessageBox(f"Transfer spending limit set to {club.transfer_budget:,}.", "Finances", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(f"Transfer spending limit set to {club.transfer_spending_limit:,}.", "Finances", wx.OK | wx.ICON_INFORMATION)
         self.show_finance_screen()
 
     def show_club_records(self):
+        self._push_nav(self.show_club_records)
         self.clear()
         self._top_header()
         club = self.game_state.clubs[self.game_state.player_club_id]
@@ -809,6 +942,7 @@ class FootballManagerApp(wx.Frame):
         wx.CallAfter(txt.SetFocus)
 
     def show_squad(self):
+        self._push_nav(self.show_squad)
         self.clear()
         self._top_header()
         club = self.game_state.clubs[self.game_state.player_club_id]
@@ -823,7 +957,7 @@ class FootballManagerApp(wx.Frame):
                 self.squad_check.Check(i)
         box.Add(self.squad_check, 1, wx.EXPAND | wx.ALL, 10)
         btns = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in [("&Save Match Squad", self._save_selected_squad), ("Auto Select Best &XI", self._auto_select_squad), ("&Back to Dashboard", lambda e: self.show_dashboard())]:
+        for label, handler in [("&Save Match Squad", self._save_selected_squad), ("Auto Select Best &XI", self._auto_select_squad), ("&Back to Main Menu", lambda e: self.show_dashboard())]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, handler)
@@ -850,7 +984,48 @@ class FootballManagerApp(wx.Frame):
         self.autosave()
         self.show_squad()
 
+    def show_pre_kickoff_squad_review(self, fixture=None):
+        self._push_nav(lambda track=False: self.show_pre_kickoff_squad_review(fixture))
+        self.clear()
+        self._top_header()
+        gs = self.game_state
+        club = gs.clubs[gs.player_club_id]
+        fixture = fixture or (self._week_player_fixtures[0] if self._week_player_fixtures else game_engine.get_player_fixture(gs))
+        if not fixture:
+            self.show_match_day()
+            return
+        home = gs.clubs[fixture.home_id]
+        away = gs.clubs[fixture.away_id]
+        selected = game_engine.get_player_selected_squad(club)
+        bench = [p for p in club.players if p.id not in club.selected_squad_ids][:7]
+        self._add_section_heading("Pre-Kickoff Squad Review", "Review your selected team before starting the match")
+        box = self._add_group("Match Preview", f"Fixture: {home.name} vs {away.name}\nCompetition: {game_engine.get_competition_name(gs, fixture)}\nStadium: {home.stadium_name if fixture.home_id == home.id else away.stadium_name}")
+        text = self._make_readable_text(
+            "Selected XI:\n" + "\n".join([f"- {p.position.value}: {p.full_name} (OVR {p.overall})" for p in selected]) +
+            "\n\nBench / Remaining Squad:\n" + ("\n".join([f"- {p.position.value}: {p.full_name} (OVR {p.overall})" for p in bench]) if bench else "No additional players listed."),
+            min_height=420,
+        )
+        box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        play_btn = wx.Button(self.scroll, label="&Play Match")
+        self._style_control(play_btn)
+        play_btn.Bind(wx.EVT_BUTTON, lambda e: self._start_selected_match_from_review(fixture))
+        row.Add(play_btn, 0, wx.ALL, 5)
+        back_match_btn = wx.Button(self.scroll, label="&Back to Match Day")
+        self._style_control(back_match_btn)
+        back_match_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_match_day())
+        row.Add(back_match_btn, 0, wx.ALL, 5)
+        back_main_btn = wx.Button(self.scroll, label="Back to &Main Menu")
+        self._style_control(back_main_btn)
+        back_main_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_dashboard())
+        row.Add(back_main_btn, 0, wx.ALL, 5)
+        box.Add(row, 0, wx.ALL, 10)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+        wx.CallAfter(text.SetFocus)
+
     def show_match_day(self):
+        self._push_nav(self.show_match_day)
         self.clear()
         self._top_header()
         gs = self.game_state
@@ -867,7 +1042,7 @@ class FootballManagerApp(wx.Frame):
             wx.MessageBox("No player fixture this week.", "Match Day", wx.OK)
             self.show_dashboard()
             return
-        self._add_section_heading("Match Day", "Play your next fixture and hear the commentary")
+        self._add_section_heading("Match Day", "Review your squad, then play your next fixture and hear the commentary")
         box = self._add_group("Live Match Centre", "Live commentary is announced and listed as events. It is no longer presented as a text entry field.")
         squad_names = [p.full_name for p in game_engine.get_player_selected_squad(club)]
         squad_text = wx.StaticText(self.scroll, label="Selected XI: " + ", ".join(squad_names))
@@ -882,17 +1057,21 @@ class FootballManagerApp(wx.Frame):
             info = wx.StaticText(self.scroll, label=self._fixture_label(self._week_player_fixtures[0]))
             info.SetForegroundColour(self.MUTED_FG)
             box.Add(info, 0, wx.ALL, 10)
-        commentary_panel = self._make_live_commentary_surface()
-        box.Add(commentary_panel, 1, wx.EXPAND | wx.ALL, 10)
+        commentary_sizer = self._make_live_commentary_surface()
+        box.Add(commentary_sizer, 1, wx.EXPAND | wx.ALL, 10)
         self.match_stats_label = wx.StaticText(self.scroll, label="")
         self.match_stats_label.SetForegroundColour(self.MUTED_FG)
         box.Add(self.match_stats_label, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, 10)
         btns = wx.BoxSizer(wx.HORIZONTAL)
+        review_btn = wx.Button(self.scroll, label="&Review Selected Squad")
+        self._style_control(review_btn)
+        review_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_pre_kickoff_squad_review(self._selected_fixture_for_match_day()))
+        btns.Add(review_btn, 0, wx.ALL, 5)
         self.btn_play_match = wx.Button(self.scroll, label="&Play Selected Match")
         self._style_control(self.btn_play_match)
         self.btn_play_match.Bind(wx.EVT_BUTTON, self._on_play_match)
         btns.Add(self.btn_play_match, 0, wx.ALL, 5)
-        self.btn_continue_match = wx.Button(self.scroll, label="&Continue to Dashboard")
+        self.btn_continue_match = wx.Button(self.scroll, label="&Back to Main Menu")
         self._style_control(self.btn_continue_match)
         self.btn_continue_match.Bind(wx.EVT_BUTTON, lambda e: self.show_dashboard())
         self.btn_continue_match.Disable()
@@ -900,6 +1079,13 @@ class FootballManagerApp(wx.Frame):
         box.Add(btns, 0, wx.ALL, 10)
         self.scroll.Layout()
         self.scroll.FitInside()
+
+    def _selected_fixture_for_match_day(self):
+        if hasattr(self, "match_choice"):
+            idx = self.match_choice.GetSelection()
+            idx = 0 if idx == wx.NOT_FOUND else idx
+            return self._week_player_fixtures[idx]
+        return self._week_player_fixtures[0]
 
     def _fixture_label(self, fixture):
         gs = self.game_state
@@ -909,18 +1095,19 @@ class FootballManagerApp(wx.Frame):
         competition = game_engine.get_competition_name(gs, fixture)
         return f"{home.name} vs {away.name} ({venue}) - {competition}"
 
+    def _start_selected_match_from_review(self, fixture):
+        self.show_match_day()
+        self._current_match_fixture = fixture
+        self._on_play_match(None)
+
     def _on_play_match(self, event):
         self.btn_play_match.Disable()
         self._full_time_spoken = False
         self._speech_queue = []
         self._match_lines = []
         self.match_commentary_list.Clear()
-        if hasattr(self, "match_choice"):
-            idx = self.match_choice.GetSelection()
-            idx = 0 if idx == wx.NOT_FOUND else idx
-            self._current_match_fixture = self._week_player_fixtures[idx]
-        else:
-            self._current_match_fixture = self._week_player_fixtures[0]
+        self._current_match_fixture = self._selected_fixture_for_match_day()
+        play_week = self.game_state.league.current_week
         results = game_engine.play_week(self.game_state)
         selected_result = None
         for fixture, result in results:
@@ -934,6 +1121,7 @@ class FootballManagerApp(wx.Frame):
         self._match_events = selected_result.events
         self._match_event_idx = 0
         self._match_result = selected_result
+        self._played_week_number = play_week
         self._play_next_event()
 
     def _event_delay(self, event):
@@ -962,6 +1150,7 @@ class FootballManagerApp(wx.Frame):
             self.autosave()
             self.btn_continue_match.Enable()
             self.btn_continue_match.SetFocus()
+            wx.CallLater(500, self.show_post_match_results_screen, self._played_week_number)
             return
         event = self._match_events[self._match_event_idx]
         self._match_event_idx += 1
@@ -973,9 +1162,27 @@ class FootballManagerApp(wx.Frame):
 
     def _show_match_stats(self):
         r = self._match_result
-        self.match_stats_label.SetLabel(f"FULL TIME: {r.home_team} {r.home_goals} - {r.away_goals} {r.away_team}\nShots: {r.home_shots} - {r.away_shots} | Attendance: {r.attendance:,}")
+        stadium_name = self.game_state.clubs[self._current_match_fixture.home_id].stadium_name
+        self.match_stats_label.SetLabel(f"FULL TIME: {r.home_team} {r.home_goals} - {r.away_goals} {r.away_team}\nShots: {r.home_shots} - {r.away_shots} | Stadium: {stadium_name} | Attendance: {r.attendance:,}")
+
+    def show_post_match_results_screen(self, week):
+        self._push_nav(lambda track=False: self.show_post_match_results_screen(week))
+        self.clear()
+        self._top_header()
+        self._add_section_heading("Post-Match Results", "Other results from this round")
+        box = self._add_group("Round Results", "After your match, review the rest of the results across the competitions this week.")
+        lines = game_engine.get_post_match_other_results(self.game_state, week)
+        if not lines:
+            lines = ["No additional results available this week."]
+        text = self._make_readable_text("\n".join(lines), min_height=340)
+        box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
+        self._simple_back("&Back to Main Menu", self.show_dashboard)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+        wx.CallAfter(text.SetFocus)
 
     def show_league_table(self):
+        self._push_nav(self.show_league_table)
         self.clear()
         self._top_header()
         gs = self.game_state
@@ -1000,6 +1207,7 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
 
     def show_transfers(self):
+        self._push_nav(self.show_transfers)
         self.clear()
         self._top_header()
         self._active_negotiation = None
@@ -1007,7 +1215,7 @@ class FootballManagerApp(wx.Frame):
         club = gs.clubs[gs.player_club_id]
         window = self._native_transfer_window() or game_engine.get_transfer_window_status(gs)
         self._add_section_heading("Transfer Market", "Filter, search, browse and inspect transfer targets")
-        box = self._add_group("Transfer Market Browser", f"Current Date: {game_engine.get_current_date(gs).strftime('%d %B %Y')}\nWindow Status: {window['label']}\nTransfer Budget: {club.transfer_budget:,} | Wage Budget Weekly: {club.wage_budget_weekly:,}")
+        box = self._add_group("Transfer Market Browser", f"Current Date: {game_engine.get_current_date(gs).strftime('%d %B %Y')}\nWindow Status: {window['label']}\nTransfer Budget: {club.transfer_budget:,} | Limit: {club.transfer_spending_limit:,} | Wage Budget Weekly: {club.wage_budget_weekly:,}")
         filters = wx.BoxSizer(wx.HORIZONTAL)
         pos_lbl = wx.StaticText(self.scroll, label="Position Filter:")
         pos_lbl.SetForegroundColour(self.FG)
@@ -1035,7 +1243,11 @@ class FootballManagerApp(wx.Frame):
         self._style_control(open_btn)
         open_btn.Bind(wx.EVT_BUTTON, self._open_selected_transfer_profile)
         btn_row.Add(open_btn, 0, wx.ALL, 5)
-        back_btn = wx.Button(self.scroll, label="&Back to Dashboard")
+        my_squad_btn = wx.Button(self.scroll, label="List &My Player for Sale")
+        self._style_control(my_squad_btn)
+        my_squad_btn.Bind(wx.EVT_BUTTON, self.show_sell_player_screen)
+        btn_row.Add(my_squad_btn, 0, wx.ALL, 5)
+        back_btn = wx.Button(self.scroll, label="&Back to Main Menu")
         self._style_control(back_btn)
         back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_dashboard())
         btn_row.Add(back_btn, 0, wx.ALL, 5)
@@ -1043,6 +1255,44 @@ class FootballManagerApp(wx.Frame):
         self._refresh_transfer_market_browser()
         self.scroll.Layout()
         self.scroll.FitInside()
+
+    def show_sell_player_screen(self):
+        self._push_nav(self.show_sell_player_screen)
+        self.clear()
+        self._top_header()
+        club = self.game_state.clubs[self.game_state.player_club_id]
+        self._add_section_heading("List Player for Sale", "Choose one of your players to put on the market")
+        box = self._add_group("Selling Market", "Listed players should now receive realistic incoming offers.")
+        self.sell_list = wx.ListBox(self.scroll)
+        self._style_control(self.sell_list, surface=True)
+        self._sell_players = list(club.players)
+        for p in self._sell_players:
+            listed = " [Listed]" if p.transfer_listed else ""
+            self.sell_list.Append(f"{p.position.name} - {p.full_name} - OVR {p.overall} - Value {p.value:,}{listed}")
+        box.Add(self.sell_list, 1, wx.EXPAND | wx.ALL, 10)
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        list_btn = wx.Button(self.scroll, label="&List Selected Player")
+        self._style_control(list_btn)
+        list_btn.Bind(wx.EVT_BUTTON, self._list_selected_player_for_sale)
+        row.Add(list_btn, 0, wx.ALL, 5)
+        box.Add(row, 0, wx.ALL, 5)
+        self._simple_back("&Back to Transfer Market", self.show_transfers)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+
+    def _list_selected_player_for_sale(self, event):
+        idx = self.sell_list.GetSelection()
+        if idx == wx.NOT_FOUND:
+            return
+        player = self._sell_players[idx]
+        asking = wx.GetNumberFromUser("Set an asking price for this player.", "Asking Price:", "List Player for Sale", player.value, 1000, max(player.value * 3, 10000), self)
+        if asking == -1:
+            return
+        success, msg = game_engine.list_player_for_sale(self.game_state, player.id, int(asking))
+        if success:
+            self.autosave()
+        wx.MessageBox(msg, "Transfer Listing", wx.OK | wx.ICON_INFORMATION)
+        self.show_sell_player_screen()
 
     def _refresh_transfer_market_browser(self):
         position_filter = self.transfer_position_choice.GetStringSelection() if hasattr(self, "transfer_position_choice") else "All"
@@ -1055,6 +1305,8 @@ class FootballManagerApp(wx.Frame):
                 suffix.append("Shortlisted")
             if player.scouted:
                 suffix.append("Scouted")
+            if player.transfer_listed:
+                suffix.append("Listed")
             tag = f" [{', '.join(suffix)}]" if suffix else ""
             self.transfer_listbox.Append(f"{player.position.name} - {player.full_name} - OVR {player.overall} - {club.short_name} - {listing.asking_price:,}{tag}")
         if self._transfer_market_items:
@@ -1075,6 +1327,7 @@ class FootballManagerApp(wx.Frame):
         self.show_transfer_player_sheet(listing, player, club)
 
     def show_transfer_player_sheet(self, listing, player, club):
+        self._push_nav(lambda track=False: self.show_transfer_player_sheet(listing, player, club))
         self.clear()
         self._top_header()
         profile = game_engine.get_player_market_profile(self.game_state, listing, player, club)
@@ -1133,6 +1386,7 @@ class FootballManagerApp(wx.Frame):
         wx.MessageBox(msg, "Scout Player", wx.OK | wx.ICON_INFORMATION)
 
     def show_negotiation_screen(self, listing, player, message=None, round_number=1, defaults=None, history=None):
+        self._push_nav(lambda track=False: self.show_negotiation_screen(listing, player, message=message, round_number=round_number, defaults=defaults, history=history))
         self.clear()
         self._top_header()
         club = self.game_state.clubs[self.game_state.player_club_id]
@@ -1240,31 +1494,8 @@ class FootballManagerApp(wx.Frame):
         wx.MessageBox(result["message"], "Contract Negotiation", wx.OK | wx.ICON_INFORMATION)
         self.show_transfers()
 
-    def show_results(self):
-        self.clear()
-        self._top_header()
-        self._add_section_heading("Match Results", "Recent fixtures and outcomes")
-        box = self._add_group("Results Archive", "Review recent results and your club identity.")
-        gs = self.game_state
-        club = gs.clubs[gs.player_club_id]
-        lines = [f"Manager: You", f"Club: {club.name}", ""]
-        played_weeks = sorted(set(f.week for f in gs.league.fixtures if f.played), reverse=True)
-        for week in played_weeks[:6]:
-            lines.append(f"Week {week}")
-            for f in gs.league.fixtures:
-                if f.week == week and f.played and f.result:
-                    marker = " *" if (f.home_id == gs.player_club_id or f.away_id == gs.player_club_id) else ""
-                    lines.append(f"  {f.result.score_line}{marker}")
-        if not played_weeks:
-            lines.append("No matches played yet.")
-        text = self._make_readable_text("\n".join(lines), min_height=340)
-        box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back()
-        self.scroll.Layout()
-        self.scroll.FitInside()
-        wx.CallAfter(text.SetFocus)
-
     def show_infrastructure_hub(self):
+        self._push_nav(self.show_infrastructure_hub)
         self.clear()
         self._top_header()
         self._add_section_heading("Infrastructure", "Upgrade the stadium, training and youth systems")
@@ -1288,6 +1519,7 @@ class FootballManagerApp(wx.Frame):
         return club, game_engine.get_league_benchmarks(self.game_state, club)
 
     def show_stadium_screen(self):
+        self._push_nav(self.show_stadium_screen)
         self.clear()
         self._top_header()
         club, bench = self._bench()
@@ -1368,6 +1600,7 @@ class FootballManagerApp(wx.Frame):
         self.show_stadium_screen()
 
     def show_training_screen(self):
+        self._push_nav(self.show_training_screen)
         self.clear()
         self._top_header()
         club, bench = self._bench()
@@ -1394,6 +1627,7 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
 
     def show_youth_screen(self):
+        self._push_nav(self.show_youth_screen)
         self.clear()
         self._top_header()
         club, bench = self._bench()
@@ -1440,6 +1674,7 @@ class FootballManagerApp(wx.Frame):
         return_screen()
 
     def show_youth_team(self):
+        self._push_nav(self.show_youth_team)
         self.clear()
         self._top_header()
         club = self.game_state.clubs[self.game_state.player_club_id]
@@ -1488,6 +1723,7 @@ class FootballManagerApp(wx.Frame):
             self.show_youth_team()
 
     def show_trophy_cabinet(self):
+        self._push_nav(self.show_trophy_cabinet)
         self.clear()
         self._top_header()
         gs = self.game_state
@@ -1511,13 +1747,14 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
 
     def show_season_summary(self):
+        self._push_nav(self.show_season_summary)
         self.clear()
         self._top_header()
         gs = self.game_state
         summary = game_engine.get_season_summary(gs)
         self._add_section_heading("End of Season Summary", "Your league finish and season highlights")
         club = summary["player_club"]
-        symbol = "£" if summary["currency"] == "GBP" else "€"
+        symbol = "Â£" if summary["currency"] == "GBP" else "â‚¬"
         box = self._add_group("Season Review", "Your final league standing and reward overview.")
         lines = [f"Final Position: {summary['position']} of {summary['total_clubs']}", f"Points: {club.points} - Goal Difference: {club.gd:+d}", f"Prize Money: {symbol}{summary['prize_money']:,}"]
         if summary.get("messages"):
@@ -1534,6 +1771,49 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
         wx.CallAfter(info.SetFocus)
 
+    def show_competitions_overview(self):
+        self._push_nav(self.show_competitions_overview)
+        self.clear()
+        self._top_header()
+        self._add_section_heading("Competitions", "Domestic cups, Europe and current competition progress")
+        box = self._add_group("Competitions Overview", "Open a competition to review draws, fixtures and results.")
+        self.competition_list = wx.ListBox(self.scroll)
+        self._style_control(self.competition_list, surface=True)
+        self._competition_items = game_engine.get_competitions_for_ui(self.game_state)
+        for comp in self._competition_items:
+            scope = "Europe" if comp.country == "Europe" else comp.country
+            stage = comp.current_round or "Scheduled"
+            self.competition_list.Append(f"{comp.name} - {scope} - {stage}")
+        box.Add(self.competition_list, 1, wx.EXPAND | wx.ALL, 10)
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        open_btn = wx.Button(self.scroll, label="&Open Competition")
+        self._style_control(open_btn)
+        open_btn.Bind(wx.EVT_BUTTON, self._open_selected_competition)
+        row.Add(open_btn, 0, wx.ALL, 5)
+        box.Add(row, 0, wx.ALL, 5)
+        self._simple_back()
+        self.scroll.Layout()
+        self.scroll.FitInside()
+
+    def _open_selected_competition(self, event=None):
+        idx = self.competition_list.GetSelection()
+        if idx == wx.NOT_FOUND or idx < 0 or idx >= len(self._competition_items):
+            return
+        self.show_competition_detail(self._competition_items[idx])
+
+    def show_competition_detail(self, competition):
+        self._push_nav(lambda track=False: self.show_competition_detail(competition))
+        self.clear()
+        self._top_header()
+        self._add_section_heading(competition.name, "Competition detail, draw and result views")
+        box = self._add_group("Competition Detail", f"Current Round: {competition.current_round or 'Scheduled'}")
+        draw_lines = game_engine.get_competition_draw_text(self.game_state, competition.id)
+        result_lines = game_engine.get_competition_results(self.game_state, competition.id)
+        text = self._make_readable_text("Draws:\n" + "\n".join(draw_lines) + "\n\nResults:\n" + ("\n".join(result_lines) if result_lines else "No results yet."), min_height=460)
+        box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
+        self._simple_back("&Back to Competitions", self.show_competitions_overview)
+        self.scroll.Layout()
+        self.scroll.FitInside()
 
 def run():
     app = wx.App(False)

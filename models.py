@@ -1,7 +1,7 @@
 """Data models for Football Manager 26 - Accessible Edition."""
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from enum import Enum
 
 
@@ -53,13 +53,26 @@ class TrophyType(Enum):
     CHAMPIONS_LEAGUE = "Champions League"
     EUROPA_LEAGUE = "Europa League"
     CONFERENCE_LEAGUE = "Conference League"
+    SUPER_CUP = "Super Cup"
+    PROMOTION = "Promotion"
 
 
 class CompetitionType(Enum):
-    LEAGUE = "League"
-    CUP = "Cup"
-    PLAYOFF = "Play-Off"
-    CONTINENTAL = "Continental"
+    LEAGUE = "league"
+    DOMESTIC_CUP = "domestic_cup"
+    CONTINENTAL_CUP = "continental_cup"
+    SUPER_CUP = "super_cup"
+    PLAYOFF = "playoff"
+
+
+class MessageType(Enum):
+    SCOUT = "Scout Report"
+    FINANCE = "Finance Report"
+    TRANSFER = "Transfer"
+    BOARD = "Board"
+    COMPETITION = "Competition"
+    YOUTH = "Youth Academy"
+    SYSTEM = "System"
 
 
 @dataclass
@@ -68,6 +81,9 @@ class Trophy:
     season: int
     league_name: str
     tier: int
+    competition_id: str = ""
+    country: str = ""
+    metadata: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -250,6 +266,8 @@ class Player:
     shortlisted: bool = False
     scouted: bool = False
     scouting_notes: str = ""
+    transfer_listed: bool = False
+    asking_price_override: int = 0
 
     @property
     def full_name(self):
@@ -341,6 +359,9 @@ class Club:
     selected_squad_ids: List[str] = field(default_factory=list)
     manager_name: str = "Manager"
     shortlist_player_ids: List[str] = field(default_factory=list)
+    transfer_spending_limit: int = 0
+    sold_players_income_season: int = 0
+    bought_players_spend_season: int = 0
 
     @property
     def points(self):
@@ -366,6 +387,8 @@ class Club:
         self.goals_against = 0
         self.records.current_winning_streak = 0
         self.records.current_unbeaten_streak = 0
+        self.sold_players_income_season = 0
+        self.bought_players_spend_season = 0
         for p in self.players + self.youth_team:
             p.goals = 0
             p.assists = 0
@@ -378,6 +401,8 @@ class Club:
     def ensure_financial_fields(self):
         if self.transfer_budget <= 0:
             self.transfer_budget = max(0, int(self.budget * 0.35))
+        if self.transfer_spending_limit <= 0:
+            self.transfer_spending_limit = self.transfer_budget
         self.balance = self.budget
         self.weekly_wage_commitment = self.total_wages
         if not self.selected_squad_ids:
@@ -480,6 +505,32 @@ class TransferListing:
 
 
 @dataclass
+class IncomingTransferOffer:
+    id: str
+    player_id: str
+    buyer_club_id: str
+    seller_club_id: str
+    fee: int
+    week_created: int
+    status: str = "pending"
+
+
+@dataclass
+class InboxMessage:
+    id: str
+    week: int
+    season: int
+    subject: str
+    body: str
+    message_type: MessageType = MessageType.SYSTEM
+    read: bool = False
+    related_player_id: str = ""
+    related_club_id: str = ""
+    action_required: bool = False
+    metadata: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class LeagueSeason:
     name: str
     country: str
@@ -510,7 +561,15 @@ class Competition:
     current_round: str = ""
     active: bool = True
     winner_club_id: str = ""
+    runner_up_club_id: str = ""
     qualification_places: int = 0
+    rounds: List[str] = field(default_factory=list)
+    qualified_club_ids: List[str] = field(default_factory=list)
+    entry_rules: Dict[str, Any] = field(default_factory=dict)
+    slot_rules: Dict[str, Any] = field(default_factory=dict)
+    scheduled_weeks: List[int] = field(default_factory=list)
+    draw_state: Dict[str, Any] = field(default_factory=dict)
+    draw_rules: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -541,6 +600,8 @@ class GameState:
     pending_messages: List[str] = field(default_factory=list)
     current_date: str = "2026-07-01"
     country: str = "England"
+    inbox: List[InboxMessage] = field(default_factory=list)
+    incoming_transfer_offers: List[IncomingTransferOffer] = field(default_factory=list)
 
     def ensure_defaults(self):
         for club in self.clubs.values():
@@ -559,6 +620,10 @@ class GameState:
                     player.scouted = False
                 if player.scouting_notes is None:
                     player.scouting_notes = ""
+                if player.transfer_listed is None:
+                    player.transfer_listed = False
+                if player.asking_price_override is None:
+                    player.asking_price_override = 0
         if self.competitions is None:
             self.competitions = []
         if self.league_system is None:
@@ -571,4 +636,8 @@ class GameState:
             self.current_date = "2026-07-01"
         if not self.country and self.league:
             self.country = self.league.country
+        if self.inbox is None:
+            self.inbox = []
+        if self.incoming_transfer_offers is None:
+            self.incoming_transfer_offers = []
         return self
