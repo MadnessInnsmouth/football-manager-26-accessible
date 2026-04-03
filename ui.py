@@ -296,30 +296,30 @@ class FootballManagerApp(wx.Frame):
             status_lbl = wx.StaticText(self.scroll, label=f"Signed in as: {username}")
             status_lbl.SetForegroundColour(self.SUCCESS)
             box.Add(status_lbl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-            continue_btn = wx.Button(self.scroll, label=f"&Continue as {username}", size=(300, 42))
+            continue_btn = wx.Button(self.scroll, label=f"Continue as {username}", size=(300, 42))
             self._style_control(continue_btn)
             continue_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_main_menu(track=True))
             box.Add(continue_btn, 0, wx.ALL, 6)
-            logout_btn = wx.Button(self.scroll, label="&Log Out and Switch Account", size=(300, 42))
+            logout_btn = wx.Button(self.scroll, label="Log Out and Switch Account", size=(300, 42))
             self._style_control(logout_btn)
             logout_btn.Bind(wx.EVT_BUTTON, lambda e: (account_service.logout(), self.show_welcome_screen()))
             box.Add(logout_btn, 0, wx.ALL, 6)
             first = continue_btn
         else:
-            login_btn = wx.Button(self.scroll, label="&Log In", size=(300, 42))
+            login_btn = wx.Button(self.scroll, label="Log In", size=(300, 42))
             self._style_control(login_btn)
             login_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_login_screen())
             box.Add(login_btn, 0, wx.ALL, 6)
-            register_btn = wx.Button(self.scroll, label="&Create Account", size=(300, 42))
+            register_btn = wx.Button(self.scroll, label="Create Account", size=(300, 42))
             self._style_control(register_btn)
             register_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_register_screen())
             box.Add(register_btn, 0, wx.ALL, 6)
-            guest_btn = wx.Button(self.scroll, label="Continue as &Guest (Offline Only)", size=(300, 42))
+            guest_btn = wx.Button(self.scroll, label="Continue as Guest (Offline Only)", size=(300, 42))
             self._style_control(guest_btn)
             guest_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_main_menu(track=True))
             box.Add(guest_btn, 0, wx.ALL, 6)
             first = login_btn
-        quit_btn = wx.Button(self.scroll, label="&Quit Game", size=(300, 42))
+        quit_btn = wx.Button(self.scroll, label="Quit Game", size=(300, 42))
         self._style_control(quit_btn)
         quit_btn.Bind(wx.EVT_BUTTON, lambda e: self.Close())
         box.Add(quit_btn, 0, wx.ALL, 6)
@@ -354,11 +354,11 @@ class FootballManagerApp(wx.Frame):
         self._login_status.SetForegroundColour(self.WARNING)
         box.Add(self._login_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         btn_row = wx.BoxSizer(wx.HORIZONTAL)
-        login_btn = wx.Button(self.scroll, label="&Log In", size=(200, 42))
+        login_btn = wx.Button(self.scroll, label="Log In", size=(200, 42))
         self._style_control(login_btn)
         login_btn.Bind(wx.EVT_BUTTON, self._do_login)
         btn_row.Add(login_btn, 0, wx.ALL, 5)
-        back_btn = wx.Button(self.scroll, label="&Back", size=(200, 42))
+        back_btn = wx.Button(self.scroll, label="Back", size=(200, 42))
         self._style_control(back_btn)
         back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_welcome_screen())
         btn_row.Add(back_btn, 0, wx.ALL, 5)
@@ -415,11 +415,11 @@ class FootballManagerApp(wx.Frame):
         self._reg_status.SetForegroundColour(self.WARNING)
         box.Add(self._reg_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         btn_row = wx.BoxSizer(wx.HORIZONTAL)
-        reg_btn = wx.Button(self.scroll, label="&Create Account", size=(200, 42))
+        reg_btn = wx.Button(self.scroll, label="Create Account", size=(200, 42))
         self._style_control(reg_btn)
         reg_btn.Bind(wx.EVT_BUTTON, self._do_register)
         btn_row.Add(reg_btn, 0, wx.ALL, 5)
-        back_btn = wx.Button(self.scroll, label="&Back", size=(200, 42))
+        back_btn = wx.Button(self.scroll, label="Back", size=(200, 42))
         self._style_control(back_btn)
         back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_welcome_screen())
         btn_row.Add(back_btn, 0, wx.ALL, 5)
@@ -480,15 +480,15 @@ class FootballManagerApp(wx.Frame):
             save_lbl = wx.StaticText(self.scroll, label="Local save game detected. Load Game is available.")
             save_lbl.SetForegroundColour(self.SUCCESS)
             box.Add(save_lbl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-        buttons = [("&New Game", self.show_club_creation)]
+        buttons = [("New Game", self.show_club_creation)]
         if self.has_save_game():
-            buttons.append(("&Load Game (Local)", self._load_existing_game))
+            buttons.append(("Load Game (Local)", self._load_existing_game))
         if account_service.is_logged_in():
-            buttons.append(("Load Game from &Cloud", self.show_cloud_load))
-        buttons.append(("&Settings", self.show_settings_placeholder))
-        buttons.append(("Quick &Multiplayer Match", self.show_quick_multiplayer))
-        buttons.append(("Remote Quick &Multiplayer", self.show_remote_multiplayer))
-        buttons.append(("&Quit Game", self.Close))
+            buttons.append(("Load Game from Cloud", self.show_cloud_load))
+        buttons.append(("Settings", self.show_settings_placeholder))
+        buttons.append(("Quick Multiplayer Match", self.show_quick_multiplayer))
+        buttons.append(("Remote Quick Multiplayer", self.show_remote_multiplayer))
+        buttons.append(("Quit Game", self.Close))
         first = None
         for label, handler in buttons:
             btn = wx.Button(self.scroll, label=label, size=(300, 42))
@@ -514,7 +514,7 @@ class FootballManagerApp(wx.Frame):
             acct_info = wx.StaticText(self.scroll, label=f"Signed in as: {username}")
             acct_info.SetForegroundColour(self.SUCCESS)
             box_acct.Add(acct_info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-            logout_btn = wx.Button(self.scroll, label="&Log Out", size=(200, 42))
+            logout_btn = wx.Button(self.scroll, label="Log Out", size=(200, 42))
             self._style_control(logout_btn)
             logout_btn.Bind(wx.EVT_BUTTON, lambda e: (account_service.logout(), speak("Logged out."), self.show_settings_placeholder()))
             box_acct.Add(logout_btn, 0, wx.ALL, 6)
@@ -522,11 +522,11 @@ class FootballManagerApp(wx.Frame):
             acct_info = wx.StaticText(self.scroll, label="Not signed in. Cloud saves and multiplayer require an account.")
             acct_info.SetForegroundColour(self.WARNING)
             box_acct.Add(acct_info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-            login_btn = wx.Button(self.scroll, label="&Log In", size=(200, 42))
+            login_btn = wx.Button(self.scroll, label="Log In", size=(200, 42))
             self._style_control(login_btn)
             login_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_login_screen())
             box_acct.Add(login_btn, 0, wx.ALL, 6)
-            register_btn = wx.Button(self.scroll, label="&Create Account", size=(200, 42))
+            register_btn = wx.Button(self.scroll, label="Create Account", size=(200, 42))
             self._style_control(register_btn)
             register_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_register_screen())
             box_acct.Add(register_btn, 0, wx.ALL, 6)
@@ -542,7 +542,7 @@ class FootballManagerApp(wx.Frame):
             min_height=160,
         )
         box.Add(info, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Main Menu", self.show_main_menu)
+        self._simple_back("Back to Main Menu", self.show_main_menu)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -574,11 +574,11 @@ class FootballManagerApp(wx.Frame):
                 setattr(self, attr, txt)
                 form.Add(txt, 0, wx.EXPAND)
         box.Add(form, 0, wx.ALL | wx.EXPAND, 10)
-        btn = wx.Button(self.scroll, label="&Start Local Quick Match")
+        btn = wx.Button(self.scroll, label="Start Local Quick Match")
         self._style_control(btn)
         btn.Bind(wx.EVT_BUTTON, self._start_quick_multiplayer_match)
         box.Add(btn, 0, wx.ALL, 6)
-        self._simple_back("&Back to Welcome Screen", self.show_main_menu)
+        self._simple_back("Back to Welcome Screen", self.show_main_menu)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(self.mp_club_one.SetFocus)
@@ -599,16 +599,16 @@ class FootballManagerApp(wx.Frame):
         )
         box.Add(info, 0, wx.EXPAND | wx.ALL, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        host_btn = wx.Button(self.scroll, label="&Host Remote Match")
+        host_btn = wx.Button(self.scroll, label="Host Remote Match")
         self._style_control(host_btn)
         host_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_host_remote_match())
         row.Add(host_btn, 0, wx.ALL, 5)
-        join_btn = wx.Button(self.scroll, label="&Join Remote Match")
+        join_btn = wx.Button(self.scroll, label="Join Remote Match")
         self._style_control(join_btn)
         join_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_join_remote_match())
         row.Add(join_btn, 0, wx.ALL, 5)
         box.Add(row, 0, wx.ALL, 5)
-        self._simple_back("&Back to Welcome Screen", self.show_main_menu)
+        self._simple_back("Back to Welcome Screen", self.show_main_menu)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(host_btn.SetFocus)
@@ -638,11 +638,11 @@ class FootballManagerApp(wx.Frame):
                 setattr(self, attr, txt)
                 form.Add(txt, 0, wx.EXPAND)
         box.Add(form, 0, wx.ALL | wx.EXPAND, 10)
-        btn = wx.Button(self.scroll, label="Start &Hosting")
+        btn = wx.Button(self.scroll, label="Start Hosting")
         self._style_control(btn)
         btn.Bind(wx.EVT_BUTTON, self._start_hosting_remote_match)
         box.Add(btn, 0, wx.ALL, 6)
-        self._simple_back("&Back to Remote Multiplayer", self.show_remote_multiplayer)
+        self._simple_back("Back to Remote Multiplayer", self.show_remote_multiplayer)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -672,7 +672,7 @@ class FootballManagerApp(wx.Frame):
         self.host_wait_label = wx.StaticText(self.scroll, label="Waiting for connection...")
         self.host_wait_label.SetForegroundColour(self.WARNING)
         box.Add(self.host_wait_label, 0, wx.ALL, 10)
-        cancel = wx.Button(self.scroll, label="&Cancel Hosting")
+        cancel = wx.Button(self.scroll, label="Cancel Hosting")
         self._style_control(cancel)
         cancel.Bind(wx.EVT_BUTTON, lambda e: (network_service.reset(), self.show_remote_multiplayer()))
         box.Add(cancel, 0, wx.ALL, 5)
@@ -698,7 +698,7 @@ class FootballManagerApp(wx.Frame):
         box = self._add_group("Host Lobby", "Waiting for both clubs and then the host can launch the match.")
         self.remote_lobby_text = self._make_readable_text("Connected. Waiting for guest club information...", min_height=220)
         box.Add(self.remote_lobby_text, 0, wx.EXPAND | wx.ALL, 10)
-        start_btn = wx.Button(self.scroll, label="&Start Remote Quick Match")
+        start_btn = wx.Button(self.scroll, label="Start Remote Quick Match")
         self._style_control(start_btn)
         start_btn.Bind(wx.EVT_BUTTON, self._start_remote_host_match)
         box.Add(start_btn, 0, wx.ALL, 5)
@@ -753,11 +753,11 @@ class FootballManagerApp(wx.Frame):
                 setattr(self, attr, txt)
                 form.Add(txt, 0, wx.EXPAND)
         box.Add(form, 0, wx.ALL | wx.EXPAND, 10)
-        btn = wx.Button(self.scroll, label="&Join Session")
+        btn = wx.Button(self.scroll, label="Join Session")
         self._style_control(btn)
         btn.Bind(wx.EVT_BUTTON, self._join_remote_session)
         box.Add(btn, 0, wx.ALL, 6)
-        self._simple_back("&Back to Remote Multiplayer", self.show_remote_multiplayer)
+        self._simple_back("Back to Remote Multiplayer", self.show_remote_multiplayer)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -806,7 +806,7 @@ class FootballManagerApp(wx.Frame):
         else:
             speak("Remote quick match result received.", interrupt=False)
         network_service.reset()
-        self._simple_back("&Back to Welcome Screen", self.show_main_menu)
+        self._simple_back("Back to Welcome Screen", self.show_main_menu)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(info.SetFocus)
@@ -858,7 +858,7 @@ class FootballManagerApp(wx.Frame):
         text_lines.extend(event.commentary for event in result.events[:18])
         info = self._make_readable_text("\n".join(text_lines), min_height=360)
         box.Add(info, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Welcome Screen", self.show_main_menu)
+        self._simple_back("Back to Welcome Screen", self.show_main_menu)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(info.SetFocus)
@@ -901,16 +901,16 @@ class FootballManagerApp(wx.Frame):
                 self._cloud_save_list.SetSelection(0)
             box.Add(self._cloud_save_list, 0, wx.EXPAND | wx.ALL, 10)
             btn_row = wx.BoxSizer(wx.HORIZONTAL)
-            load_btn = wx.Button(self.scroll, label="&Load Selected Save", size=(220, 42))
+            load_btn = wx.Button(self.scroll, label="Load Selected Save", size=(220, 42))
             self._style_control(load_btn)
             load_btn.Bind(wx.EVT_BUTTON, self._do_cloud_load)
             btn_row.Add(load_btn, 0, wx.ALL, 5)
-            del_btn = wx.Button(self.scroll, label="&Delete Selected Save", size=(220, 42))
+            del_btn = wx.Button(self.scroll, label="Delete Selected Save", size=(220, 42))
             self._style_control(del_btn)
             del_btn.Bind(wx.EVT_BUTTON, self._do_cloud_delete)
             btn_row.Add(del_btn, 0, wx.ALL, 5)
             box.Add(btn_row, 0, wx.ALL, 10)
-        self._simple_back("&Back to Main Menu", self.show_main_menu)
+        self._simple_back("Back to Main Menu", self.show_main_menu)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -997,7 +997,7 @@ class FootballManagerApp(wx.Frame):
                 form.Add(self.txt_stadium, 0, wx.EXPAND)
         box.Add(form, 0, wx.ALL | wx.EXPAND, 15)
         btns = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in [("&Create Club and Start Game", self._on_create_club), ("&Back to Welcome Screen", lambda e: self.show_main_menu())]:
+        for label, handler in [("Create Club and Start Game", self._on_create_club), ("Back to Welcome Screen", lambda e: self.show_main_menu())]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, handler)
@@ -1013,7 +1013,7 @@ class FootballManagerApp(wx.Frame):
     def _update_league_info(self):
         country = self.choice_country.GetString(self.choice_country.GetSelection())
         profile = game_engine.get_league_financial_profile(country)
-        symbol = "Â£" if profile["currency"] == "GBP" else "â‚¬"
+        symbol = "£" if profile["currency"] == "GBP" else "€"
         self.lbl_league_info.SetLabel(
             f"{profile['league_name']} (Tier {profile['tier']}) - Currency: {profile['currency']} - "
             f"Average budget: {symbol}{profile['avg_budget']:,} - Weekly wage benchmark: {symbol}{profile['avg_wage']:,}"
@@ -1049,15 +1049,15 @@ class FootballManagerApp(wx.Frame):
         )
         grid = wx.GridSizer(cols=3, vgap=10, hgap=10)
         for label, handler in [
-            ("&Club", self.show_club_hub),
-            ("&Inbox", self.show_inbox),
-            ("&Squad", self.show_squad),
-            ("&Transfer Market", self.show_transfers),
-            ("&Match Day", self.show_match_day),
-            ("&League Table", self.show_league_table),
-            ("&Competitions", self.show_competitions_overview),
-            ("&Save Game", self._manual_save),
-            ("&Welcome Screen", self.show_main_menu),
+            ("Club", self.show_club_hub),
+            ("Inbox", self.show_inbox),
+            ("Squad", self.show_squad),
+            ("Transfer Market", self.show_transfers),
+            ("Match Day", self.show_match_day),
+            ("League Table", self.show_league_table),
+            ("Competitions", self.show_competitions_overview),
+            ("Save Game", self._manual_save),
+            ("Welcome Screen", self.show_main_menu),
         ]:
             btn = wx.Button(self.scroll, label=label, size=(220, 44))
             self._style_control(btn)
@@ -1082,7 +1082,7 @@ class FootballManagerApp(wx.Frame):
                 "Save Game", wx.OK | wx.ICON_INFORMATION,
             )
 
-    def _simple_back(self, label="&Back to Main Menu", handler=None):
+    def _simple_back(self, label="Back to Main Menu", handler=None):
         btn = wx.Button(self.scroll, label=label)
         self._style_control(btn)
         btn.Bind(wx.EVT_BUTTON, lambda e: (handler() if handler else self.show_dashboard()))
@@ -1102,7 +1102,7 @@ class FootballManagerApp(wx.Frame):
             self.inbox_list.Append(f"{prefix} - Week {msg.week} - {msg.message_type.value} - {msg.subject}")
         box.Add(self.inbox_list, 1, wx.EXPAND | wx.ALL, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        open_btn = wx.Button(self.scroll, label="&Open Message")
+        open_btn = wx.Button(self.scroll, label="Open Message")
         self._style_control(open_btn)
         open_btn.Bind(wx.EVT_BUTTON, self._open_selected_inbox_message)
         row.Add(open_btn, 0, wx.ALL, 5)
@@ -1130,7 +1130,7 @@ class FootballManagerApp(wx.Frame):
         box = self._add_group("Message", f"Week {msg.week} - Season {msg.season}")
         text = self._make_readable_text(msg.body, min_height=320)
         box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Inbox", self.show_inbox)
+        self._simple_back("Back to Inbox", self.show_inbox)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(text.SetFocus)
@@ -1156,16 +1156,16 @@ class FootballManagerApp(wx.Frame):
             )
             box.Add(details, 0, wx.EXPAND | wx.ALL, 10)
             row = wx.BoxSizer(wx.HORIZONTAL)
-            accept_btn = wx.Button(self.scroll, label="&Accept Offer")
+            accept_btn = wx.Button(self.scroll, label="Accept Offer")
             self._style_control(accept_btn)
             accept_btn.Bind(wx.EVT_BUTTON, lambda e: self._respond_to_offer(offer.id, True))
             row.Add(accept_btn, 0, wx.ALL, 5)
-            reject_btn = wx.Button(self.scroll, label="&Reject Offer")
+            reject_btn = wx.Button(self.scroll, label="Reject Offer")
             self._style_control(reject_btn)
             reject_btn.Bind(wx.EVT_BUTTON, lambda e: self._respond_to_offer(offer.id, False))
             row.Add(reject_btn, 0, wx.ALL, 5)
             box.Add(row, 0, wx.ALL, 5)
-        self._simple_back("&Back to Inbox", self.show_inbox)
+        self._simple_back("Back to Inbox", self.show_inbox)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -1183,10 +1183,10 @@ class FootballManagerApp(wx.Frame):
         self._add_section_heading("Club", "Trophies, records, finances and infrastructure")
         box = self._add_group("Club Hub", "Review honours, long-term club history, finances and club development.")
         for label, handler in [
-            ("&Trophy Cabinet", self.show_trophy_cabinet),
-            ("Club &Records", self.show_club_records),
-            ("&Finances", self.show_finance_screen),
-            ("&Infrastructure", self.show_infrastructure_hub),
+            ("Trophy Cabinet", self.show_trophy_cabinet),
+            ("Club Records", self.show_club_records),
+            ("Finances", self.show_finance_screen),
+            ("Infrastructure", self.show_infrastructure_hub),
         ]:
             btn = wx.Button(self.scroll, label=label, size=(320, 42))
             self._style_control(btn)
@@ -1223,12 +1223,12 @@ class FootballManagerApp(wx.Frame):
         self.finance_limit = wx.SpinCtrl(self.scroll, min=0, max=max(1000, club.budget * 3), initial=int(club.transfer_spending_limit or club.transfer_budget))
         self._style_control(self.finance_limit)
         row.Add(self.finance_limit, 0, wx.RIGHT, 8)
-        save_btn = wx.Button(self.scroll, label="&Apply Limit")
+        save_btn = wx.Button(self.scroll, label="Apply Limit")
         self._style_control(save_btn)
         save_btn.Bind(wx.EVT_BUTTON, self._apply_finance_limit)
         row.Add(save_btn, 0)
         box.Add(row, 0, wx.ALL, 10)
-        self._simple_back("&Back to Club", self.show_club_hub)
+        self._simple_back("Back to Club", self.show_club_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(text.SetFocus)
@@ -1268,7 +1268,7 @@ class FootballManagerApp(wx.Frame):
             ]
         txt = self._make_readable_text("\n".join(lines), min_height=240)
         box.Add(txt, 0, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Club", self.show_club_hub)
+        self._simple_back("Back to Club", self.show_club_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(txt.SetFocus)
@@ -1289,7 +1289,7 @@ class FootballManagerApp(wx.Frame):
                 self.squad_check.Check(i)
         box.Add(self.squad_check, 1, wx.EXPAND | wx.ALL, 10)
         btns = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in [("&Save Match Squad", self._save_selected_squad), ("Auto Select Best &XI", self._auto_select_squad), ("&Back to Main Menu", lambda e: self.show_dashboard())]:
+        for label, handler in [("Save Match Squad", self._save_selected_squad), ("Auto Select Best XI", self._auto_select_squad), ("Back to Main Menu", lambda e: self.show_dashboard())]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, handler)
@@ -1339,15 +1339,15 @@ class FootballManagerApp(wx.Frame):
         )
         box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        play_btn = wx.Button(self.scroll, label="&Play Match")
+        play_btn = wx.Button(self.scroll, label="Play Match")
         self._style_control(play_btn)
         play_btn.Bind(wx.EVT_BUTTON, lambda e: self._start_selected_match_from_review(fixture))
         row.Add(play_btn, 0, wx.ALL, 5)
-        back_match_btn = wx.Button(self.scroll, label="&Back to Match Day")
+        back_match_btn = wx.Button(self.scroll, label="Back to Match Day")
         self._style_control(back_match_btn)
         back_match_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_match_day())
         row.Add(back_match_btn, 0, wx.ALL, 5)
-        back_main_btn = wx.Button(self.scroll, label="Back to &Main Menu")
+        back_main_btn = wx.Button(self.scroll, label="Back to Main Menu")
         self._style_control(back_main_btn)
         back_main_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_dashboard())
         row.Add(back_main_btn, 0, wx.ALL, 5)
@@ -1395,15 +1395,15 @@ class FootballManagerApp(wx.Frame):
         self.match_stats_label.SetForegroundColour(self.MUTED_FG)
         box.Add(self.match_stats_label, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, 10)
         btns = wx.BoxSizer(wx.HORIZONTAL)
-        review_btn = wx.Button(self.scroll, label="&Review Selected Squad")
+        review_btn = wx.Button(self.scroll, label="Review Selected Squad")
         self._style_control(review_btn)
         review_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_pre_kickoff_squad_review(self._selected_fixture_for_match_day()))
         btns.Add(review_btn, 0, wx.ALL, 5)
-        self.btn_play_match = wx.Button(self.scroll, label="&Play Selected Match")
+        self.btn_play_match = wx.Button(self.scroll, label="Play Selected Match")
         self._style_control(self.btn_play_match)
         self.btn_play_match.Bind(wx.EVT_BUTTON, self._on_play_match)
         btns.Add(self.btn_play_match, 0, wx.ALL, 5)
-        self.btn_continue_match = wx.Button(self.scroll, label="&Back to Main Menu")
+        self.btn_continue_match = wx.Button(self.scroll, label="Back to Main Menu")
         self._style_control(self.btn_continue_match)
         self.btn_continue_match.Bind(wx.EVT_BUTTON, lambda e: self.show_dashboard())
         self.btn_continue_match.Disable()
@@ -1497,18 +1497,50 @@ class FootballManagerApp(wx.Frame):
         stadium_name = self.game_state.clubs[self._current_match_fixture.home_id].stadium_name
         self.match_stats_label.SetLabel(f"FULL TIME: {r.home_team} {r.home_goals} - {r.away_goals} {r.away_team}\nShots: {r.home_shots} - {r.away_shots} | Stadium: {stadium_name} | Attendance: {r.attendance:,}")
 
-    def show_post_match_results_screen(self, week):
-        self._push_nav(lambda track=False: self.show_post_match_results_screen(week))
+    def show_post_match_results_screen(self, week, result_idx=0):
+        self._push_nav(lambda track=False: self.show_post_match_results_screen(week, result_idx))
         self.clear()
         self._top_header()
-        self._add_section_heading("Post-Match Results", "Other results from this round")
-        box = self._add_group("Round Results", "After your match, review the rest of the results across the competitions this week.")
-        lines = game_engine.get_post_match_other_results(self.game_state, week)
-        if not lines:
-            lines = ["No additional results available this week."]
-        text = self._make_readable_text("\n".join(lines), min_height=340)
-        box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Main Menu", self.show_dashboard)
+        self._add_section_heading("Post-Match Results", "All results from this round - use Previous/Next to navigate")
+        all_results = game_engine.get_post_match_results_detail(self.game_state, week)
+        if not all_results:
+            all_results = []
+        total = len(all_results)
+        box = self._add_group(
+            f"Round Results - Week {week}",
+            f"Result {result_idx + 1} of {total}. Use the Previous and Next buttons to browse all results this week."
+            if total > 0 else "No results available this week.",
+        )
+        if total > 0:
+            idx = max(0, min(result_idx, total - 1))
+            r = all_results[idx]
+            is_mine = " (YOUR MATCH)" if r.get("is_player_match") else ""
+            detail = (
+                f"Competition: {r['competition']}\n"
+                f"Stage: {r['stage']}\n"
+                f"Result: {r['score_line']}{is_mine}"
+            )
+        else:
+            detail = "No results were recorded this week."
+        text = self._make_readable_text(detail, min_height=200)
+        box.Add(text, 0, wx.EXPAND | wx.ALL, 10)
+        # Navigation row
+        nav_row = wx.BoxSizer(wx.HORIZONTAL)
+        if total > 1:
+            prev_btn = wx.Button(self.scroll, label="Previous Result")
+            self._style_control(prev_btn)
+            prev_enabled = result_idx > 0
+            prev_btn.Enable(prev_enabled)
+            prev_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_post_match_results_screen(week, result_idx - 1))
+            nav_row.Add(prev_btn, 0, wx.ALL, 5)
+            next_btn = wx.Button(self.scroll, label="Next Result")
+            self._style_control(next_btn)
+            next_enabled = result_idx < total - 1
+            next_btn.Enable(next_enabled)
+            next_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_post_match_results_screen(week, result_idx + 1))
+            nav_row.Add(next_btn, 0, wx.ALL, 5)
+        box.Add(nav_row, 0, wx.ALL, 5)
+        self._simple_back("Back to Main Menu", self.show_dashboard)
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(text.SetFocus)
@@ -1571,15 +1603,15 @@ class FootballManagerApp(wx.Frame):
         self.transfer_listbox.Bind(wx.EVT_KEY_DOWN, self._on_transfer_list_key)
         box.Add(self.transfer_listbox, 1, wx.EXPAND | wx.ALL, 10)
         btn_row = wx.BoxSizer(wx.HORIZONTAL)
-        open_btn = wx.Button(self.scroll, label="&Open Player Sheet")
+        open_btn = wx.Button(self.scroll, label="Open Player Sheet")
         self._style_control(open_btn)
         open_btn.Bind(wx.EVT_BUTTON, self._open_selected_transfer_profile)
         btn_row.Add(open_btn, 0, wx.ALL, 5)
-        my_squad_btn = wx.Button(self.scroll, label="List &My Player for Sale")
+        my_squad_btn = wx.Button(self.scroll, label="List My Player for Sale")
         self._style_control(my_squad_btn)
-        my_squad_btn.Bind(wx.EVT_BUTTON, self.show_sell_player_screen)
+        my_squad_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_sell_player_screen())
         btn_row.Add(my_squad_btn, 0, wx.ALL, 5)
-        back_btn = wx.Button(self.scroll, label="&Back to Main Menu")
+        back_btn = wx.Button(self.scroll, label="Back to Main Menu")
         self._style_control(back_btn)
         back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_dashboard())
         btn_row.Add(back_btn, 0, wx.ALL, 5)
@@ -1603,12 +1635,12 @@ class FootballManagerApp(wx.Frame):
             self.sell_list.Append(f"{p.position.name} - {p.full_name} - OVR {p.overall} - Value {p.value:,}{listed}")
         box.Add(self.sell_list, 1, wx.EXPAND | wx.ALL, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        list_btn = wx.Button(self.scroll, label="&List Selected Player")
+        list_btn = wx.Button(self.scroll, label="List Selected Player")
         self._style_control(list_btn)
         list_btn.Bind(wx.EVT_BUTTON, self._list_selected_player_for_sale)
         row.Add(list_btn, 0, wx.ALL, 5)
         box.Add(row, 0, wx.ALL, 5)
-        self._simple_back("&Back to Transfer Market", self.show_transfers)
+        self._simple_back("Back to Transfer Market", self.show_transfers)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -1690,10 +1722,10 @@ class FootballManagerApp(wx.Frame):
         box.Add(data_text, 1, wx.EXPAND | wx.ALL, 10)
         btns = wx.BoxSizer(wx.VERTICAL)
         for label, handler in [
-            ("&Add to Shortlist", lambda e: self._transfer_shortlist_action(player.id)),
-            ("&Negotiate Contract", lambda e: self.show_negotiation_screen(listing, player, history=[])),
-            ("&Scout Player", lambda e: self._transfer_scout_action(player.id)),
-            ("&Back to Transfer Market", lambda e: self.show_transfers()),
+            ("Add to Shortlist", lambda e: self._transfer_shortlist_action(player.id)),
+            ("Negotiate Contract", lambda e: self._negotiate_if_window_open(listing, player)),
+            ("Scout Player", lambda e: self._transfer_scout_action(player.id)),
+            ("Back to Transfer Market", lambda e: self.show_transfers()),
         ]:
             btn = wx.Button(self.scroll, label=label, size=(280, 42))
             self._style_control(btn)
@@ -1704,6 +1736,19 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
         wx.CallAfter(data_text.SetFocus)
         speak(f"Player sheet opened for {profile['name']}. Rating {profile['rating']} out of 99. Current club {profile['current_club']}.", interrupt=False)
+
+    def _negotiate_if_window_open(self, listing, player):
+        """Open contract negotiations only if the transfer window is open."""
+        window = self._native_transfer_window() or game_engine.get_transfer_window_status(self.game_state)
+        if not window["open"]:
+            wx.MessageBox(
+                f"The transfer window is currently closed.\n{window['label']}\n\n"
+                "You cannot start or complete transfer negotiations when the window is closed.",
+                "Transfer Window Closed",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+        self.show_negotiation_screen(listing, player, history=[])
 
     def _transfer_shortlist_action(self, player_id):
         success, msg = game_engine.add_player_to_shortlist(self.game_state, player_id)
@@ -1758,7 +1803,7 @@ class FootballManagerApp(wx.Frame):
         form.Add(self.neg_role, 0)
         box.Add(form, 0, wx.ALL, 10)
         btns = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in [("&Submit Offer", self._submit_negotiation_offer), ("&Walk Away", lambda e: self.show_transfers())]:
+        for label, handler in [("Submit Offer", self._submit_negotiation_offer), ("Walk Away", lambda e: self.show_transfers())]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, handler)
@@ -1832,12 +1877,12 @@ class FootballManagerApp(wx.Frame):
         self._top_header()
         self._add_section_heading("Infrastructure", "Upgrade the stadium, training and youth systems")
         box = self._add_group("Infrastructure Hub", "Choose one area to improve your club environment.")
-        for label, handler in [("&Stadium", self.show_stadium_screen), ("&Training", self.show_training_screen), ("&Youth Academy", self.show_youth_screen)]:
+        for label, handler in [("Stadium", self.show_stadium_screen), ("Training", self.show_training_screen), ("Youth Academy", self.show_youth_screen)]:
             btn = wx.Button(self.scroll, label=label, size=(320, 42))
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, lambda e, h=handler: h())
             box.Add(btn, 0, wx.ALL, 6)
-        self._simple_back("&Back to Club", self.show_club_hub)
+        self._simple_back("Back to Club", self.show_club_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -1886,13 +1931,13 @@ class FootballManagerApp(wx.Frame):
         box.Add(self.capacity_price_label, 0, wx.ALL, 10)
         self._update_capacity_price_label()
         btns = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in [("Increase &Capacity", self._confirm_stadium_capacity_upgrade), ("Upgrade &Pitch", lambda e: self._do_infra_upgrade(game_engine.upgrade_pitch, self.show_stadium_screen))]:
+        for label, handler in [("Increase Capacity", self._confirm_stadium_capacity_upgrade), ("Upgrade Pitch", lambda e: self._do_infra_upgrade(game_engine.upgrade_pitch, self.show_stadium_screen))]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, handler)
             btns.Add(btn, 0, wx.ALL, 5)
         box.Add(btns, 0, wx.ALL, 10)
-        self._simple_back("&Back to Infrastructure", self.show_infrastructure_hub)
+        self._simple_back("Back to Infrastructure", self.show_infrastructure_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -1945,7 +1990,7 @@ class FootballManagerApp(wx.Frame):
             f"Training Intensity: {club.infrastructure.training.intensity}",
         ])
         grid = wx.GridSizer(cols=2, vgap=8, hgap=8)
-        for label, fn in [("Upgrade &Training", game_engine.upgrade_training), ("Upgrade &Medical", game_engine.upgrade_medical), ("Upgrade &Parking", game_engine.upgrade_parking), ("Set Training &Intensity", None)]:
+        for label, fn in [("Upgrade Training", game_engine.upgrade_training), ("Upgrade Medical", game_engine.upgrade_medical), ("Upgrade Parking", game_engine.upgrade_parking), ("Set Training Intensity", None)]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             if fn is None:
@@ -1954,7 +1999,7 @@ class FootballManagerApp(wx.Frame):
                 btn.Bind(wx.EVT_BUTTON, lambda e, f=fn: self._do_infra_upgrade(f, self.show_training_screen))
             grid.Add(btn, 0, wx.EXPAND)
         box.Add(grid, 0, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Infrastructure", self.show_infrastructure_hub)
+        self._simple_back("Back to Infrastructure", self.show_infrastructure_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -1975,7 +2020,7 @@ class FootballManagerApp(wx.Frame):
             f"Current Youth Squad Size: {count} | Average Youth Rating: {avg_youth}",
         ])
         grid = wx.GridSizer(cols=2, vgap=8, hgap=8)
-        for label, fn in [("Upgrade &Youth Academy", game_engine.upgrade_youth_academy), ("Upgrade Youth &Recruitment", game_engine.upgrade_youth_recruitment), ("Upgrade &Scouting", game_engine.upgrade_scouting), ("View Current &Youth Squad", None)]:
+        for label, fn in [("Upgrade Youth Academy", game_engine.upgrade_youth_academy), ("Upgrade Youth Recruitment", game_engine.upgrade_youth_recruitment), ("Upgrade Scouting", game_engine.upgrade_scouting), ("View Current Youth Squad", None)]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             if fn is None:
@@ -1984,7 +2029,7 @@ class FootballManagerApp(wx.Frame):
                 btn.Bind(wx.EVT_BUTTON, lambda e, f=fn: self._do_infra_upgrade(f, self.show_youth_screen))
             grid.Add(btn, 0, wx.EXPAND)
         box.Add(grid, 0, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Infrastructure", self.show_infrastructure_hub)
+        self._simple_back("Back to Infrastructure", self.show_infrastructure_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -2026,7 +2071,7 @@ class FootballManagerApp(wx.Frame):
             self.youth_list.SetItem(idx, 5, f"{p.desired_wage:,}")
         box.Add(self.youth_list, 1, wx.EXPAND | wx.ALL, 10)
         btns = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in [("&Promote and Offer Contract", self._on_promote_youth), ("&Back to Youth Academy", lambda e: self.show_youth_screen())]:
+        for label, handler in [("Promote and Offer Contract", self._on_promote_youth), ("Back to Youth Academy", lambda e: self.show_youth_screen())]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, handler)
@@ -2074,7 +2119,7 @@ class FootballManagerApp(wx.Frame):
             trophy_list.SetItem(idx, 2, trophy.league_name)
             trophy_list.SetItem(idx, 3, str(trophy.tier))
         box.Add(trophy_list, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Club", self.show_club_hub)
+        self._simple_back("Back to Club", self.show_club_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
 
@@ -2086,7 +2131,7 @@ class FootballManagerApp(wx.Frame):
         summary = game_engine.get_season_summary(gs)
         self._add_section_heading("End of Season Summary", "Your league finish and season highlights")
         club = summary["player_club"]
-        symbol = "Â£" if summary["currency"] == "GBP" else "â‚¬"
+        symbol = "£" if summary["currency"] == "GBP" else "€"
         box = self._add_group("Season Review", "Your final league standing and reward overview.")
         lines = [f"Final Position: {summary['position']} of {summary['total_clubs']}", f"Points: {club.points} - Goal Difference: {club.gd:+d}", f"Prize Money: {symbol}{summary['prize_money']:,}"]
         if summary.get("messages"):
@@ -2108,17 +2153,24 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self._top_header()
         self._add_section_heading("Competitions", "Domestic cups, Europe and current competition progress")
-        box = self._add_group("Competitions Overview", "Open a competition to review draws, fixtures and results.")
+        box = self._add_group("Competitions Overview", "Open a competition to review draws, fixtures and results. Your status in each competition is shown.")
         self.competition_list = wx.ListBox(self.scroll)
         self._style_control(self.competition_list, surface=True)
         self._competition_items = game_engine.get_competitions_for_ui(self.game_state)
         for comp in self._competition_items:
             scope = "Europe" if comp.country == "Europe" else comp.country
             stage = comp.current_round or "Scheduled"
-            self.competition_list.Append(f"{comp.name} - {scope} - {stage}")
+            cup_status = game_engine.get_player_cup_status(self.game_state, comp.id)
+            if cup_status["eliminated_at"]:
+                my_status = f" [YOU: Knocked out at {cup_status['eliminated_at']}]"
+            elif cup_status["in_competition"]:
+                my_status = " [YOU: Still in]"
+            else:
+                my_status = ""
+            self.competition_list.Append(f"{comp.name} - {scope} - {stage}{my_status}")
         box.Add(self.competition_list, 1, wx.EXPAND | wx.ALL, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        open_btn = wx.Button(self.scroll, label="&Open Competition")
+        open_btn = wx.Button(self.scroll, label="Open Competition")
         self._style_control(open_btn)
         open_btn.Bind(wx.EVT_BUTTON, self._open_selected_competition)
         row.Add(open_btn, 0, wx.ALL, 5)
@@ -2126,6 +2178,7 @@ class FootballManagerApp(wx.Frame):
         self._simple_back()
         self.scroll.Layout()
         self.scroll.FitInside()
+
 
     def _open_selected_competition(self, event=None):
         idx = self.competition_list.GetSelection()
@@ -2138,14 +2191,24 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self._top_header()
         self._add_section_heading(competition.name, "Competition detail, draw and result views")
-        box = self._add_group("Competition Detail", f"Current Round: {competition.current_round or 'Scheduled'}")
+        cup_status = game_engine.get_player_cup_status(self.game_state, competition.id)
+        if cup_status["eliminated_at"]:
+            status_text = f"Your Status: Knocked out at {cup_status['eliminated_at']} stage"
+        elif cup_status["in_competition"]:
+            status_text = "Your Status: Still in the competition"
+        else:
+            status_text = "Your Status: Not entered in this competition"
+        box = self._add_group("Competition Detail", f"Current Round: {competition.current_round or 'Scheduled'} | {status_text}")
         draw_lines = game_engine.get_competition_draw_text(self.game_state, competition.id)
         result_lines = game_engine.get_competition_results(self.game_state, competition.id)
-        text = self._make_readable_text("Draws:\n" + "\n".join(draw_lines) + "\n\nResults:\n" + ("\n".join(result_lines) if result_lines else "No results yet."), min_height=460)
+        content = "DRAW:\n" + "\n".join(draw_lines) + "\n\nRESULTS:\n" + ("\n".join(result_lines) if result_lines else "No results yet.")
+        text = self._make_readable_text(content, min_height=460)
         box.Add(text, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Competitions", self.show_competitions_overview)
+        self._simple_back("Back to Competitions", self.show_competitions_overview)
         self.scroll.Layout()
         self.scroll.FitInside()
+        wx.CallAfter(text.SetFocus)
+
 
 def run():
     app = wx.App(False)

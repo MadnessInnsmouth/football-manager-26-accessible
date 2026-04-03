@@ -447,8 +447,28 @@ def _domestic_cup_entry_club_ids(state, country, definition):
         clubs = clubs[:top_n]
     max_entrants = definition.get("max_entrants", len(clubs))
     club_ids = [c.id for c in clubs[:max_entrants]]
+
+    # Always ensure the player's club is included if it meets the tier eligibility criteria
+    player_club = state.clubs.get(state.player_club_id)
+    if player_club and player_club.country == country and player_club.id not in club_ids:
+        min_tier = rules.get("min_tier", 1)
+        max_tier_rule = rules.get("max_tier", 99)
+        all_playable = rules.get("all_playable", False)
+        tier_ok = all_playable or (min_tier <= player_club.league_tier <= max_tier_rule)
+        not_excluded = not rules.get("top_n")  # don't force into top_n competitions (Super Cups etc.)
+        if tier_ok and not_excluded:
+            # Replace the last non-player entry to keep list size stable
+            if len(club_ids) > 0:
+                club_ids[-1] = player_club.id
+            else:
+                club_ids.append(player_club.id)
+
     if len(club_ids) % 2 == 1:
-        club_ids = club_ids[:-1]
+        # Ensure the player's club isn't the one dropped
+        if player_club and len(club_ids) > 1 and club_ids[-1] == player_club.id:
+            club_ids = club_ids[:-2] + [club_ids[-1]]
+        else:
+            club_ids = club_ids[:-1]
     return club_ids
 
 
@@ -604,13 +624,22 @@ def _cup_definition_by_id(country, competition_id):
     return None
 
 
+def _get_cup_winner_id(fixture):
+    """Return the winner's club ID for a played cup fixture (never a draw after penalties)."""
+    if not fixture.result:
+        return None
+    if fixture.result.home_goals > fixture.result.away_goals:
+        return fixture.home_id
+    return fixture.away_id
+
+
 def _advance_knockout_competition(state, competition, week, results_by_pair):
     draw_next_round(competition, week, results_by_pair)
     all_real_fixtures = [f for f in competition.fixtures if not str(f.home_id).startswith("winner:") and not str(f.away_id).startswith("winner:")]
     if all_real_fixtures and all(f.played for f in all_real_fixtures if f.stage == "Final"):
         final = next((f for f in all_real_fixtures if f.stage == "Final" and f.played and f.result), None)
         if final:
-            winner_id = final.home_id if final.result.home_goals >= final.result.away_goals else final.away_id
+            winner_id = _get_cup_winner_id(final)
             runner_id = final.away_id if winner_id == final.home_id else final.home_id
             competition.winner_club_id = winner_id
             competition.runner_up_club_id = runner_id
@@ -621,7 +650,121 @@ def _advance_knockout_competition(state, competition, week, results_by_pair):
             if winner_id == state.player_club_id:
                 add_inbox_message(state, f"Competition Won: {competition.name}", f"You have won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
             elif state.player_club_id in competition.club_ids:
-                add_inbox_message(state, f"Competition Finished: {competition.name}", f"{state.clubs[winner_id].name} won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
+                winner_name = state.clubs[winner_id].name if winner_id in state.clubs else "Unknown"
+                add_inbox_message(state, f"Competition Finished: {competition.name}", f"{winner_name} won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
+
+
+def _notify_cup_knockouts(state, fixtures, week):
+    """Send inbox messages when the player's club is knocked out of a cup in this week."""
+    pid = state.player_club_id
+    for fixture in fixtures:
+        if not fixture.played or fixture.competition_id == "league_main":
+            continue
+        if fixture.result is None:
+            continue
+        if fixture.home_id != pid and fixture.away_id != pid:
+            continue
+        # Player's club was in this cup match
+        comp = next((c for c in state.competitions if c.id == fixture.competition_id), None)
+        if not comp:
+            continue
+        winner_id = _get_cup_winner_id(fixture)
+        if winner_id == pid:
+            continue  # Player's club won; no knockout message needed
+        # Player's club was eliminated
+        opponent = state.clubs.get(winner_id) if winner_id else None
+        opp_name = opponent.name if opponent else "the opposition"
+        score = fixture.result.score_line
+        add_inbox_message(
+            state,
+            f"Cup Exit: {comp.name} - {fixture.stage}",
+            f"You have been knocked out of the {comp.name} at the {fixture.stage} stage.\n"
+            f"{opp_name} won {score}.\n"
+            f"You can still follow the remaining rounds of the {comp.name} in the Competitions screen.",
+            MessageType.COMPETITION,
+            metadata={"competition_id": comp.id},
+        )
+
+
+def _apply_cup_upset_modifier(home_club, away_club):
+    """Apply a 20% cup upset probability: weaker team gets a significant strength boost."""
+    home_tier = home_club.league_tier
+    away_tier = away_club.league_tier
+    tier_diff = abs(home_tier - away_tier)
+    if tier_diff >= 1 and random.random() < 0.20:
+        # Upset! The weaker team plays at an elevated level for this match.
+        # Return which side is getting the upset boost: "home" or "away"
+        weaker_is_home = home_tier > away_tier
+        return "home" if weaker_is_home else "away"
+    return None
+
+
+def _play_cup_fixture_with_upset(state, fixture):
+    """Play a cup fixture with the 20% upset mechanism applied, with penalty shootout for draws."""
+    pool = {**state.clubs}
+    for cid, club in build_european_competition_pool(state).items():
+        if cid not in pool:
+            pool[cid] = club
+    home = pool.get(fixture.home_id)
+    away = pool.get(fixture.away_id)
+    if not home or not away:
+        return None
+    upset_side = _apply_cup_upset_modifier(home, away)
+    if upset_side:
+        # Temporarily boost the weaker club's players for this match
+        if upset_side == "home":
+            _boost_club_temp(home, away)
+        else:
+            _boost_club_temp(away, home)
+    result = simulate_match(home, away)
+    # Cup matches cannot end in a draw - resolve via penalty shootout
+    if result.home_goals == result.away_goals:
+        result = _resolve_cup_draw_via_penalties(result, fixture)
+    return result
+
+
+def _resolve_cup_draw_via_penalties(result, fixture):
+    """Simulate a penalty shootout to produce a cup winner when the match ends level."""
+    from models import MatchEvent, EventType
+    pen_home = 0
+    pen_away = 0
+    kicks = []
+    for _ in range(5):
+        pen_home += 1 if random.random() < 0.73 else 0
+        pen_away += 1 if random.random() < 0.73 else 0
+    if pen_home == pen_away:
+        # Sudden death - just flip a coin
+        if random.random() < 0.5:
+            pen_home += 1
+        else:
+            pen_away += 1
+    pen_commentary = (
+        f"Full time: {result.home_team} {result.home_goals} - {result.away_goals} {result.away_team}. "
+        f"Penalty shootout: {result.home_team} {pen_home} - {pen_away} {result.away_team}. "
+        f"{'%s win on penalties.' % result.home_team if pen_home > pen_away else '%s win on penalties.' % result.away_team}"
+    )
+    result.events.append(MatchEvent(120, EventType.FULL_TIME, commentary=pen_commentary))
+    if pen_home > pen_away:
+        result.home_goals += 1
+    else:
+        result.away_goals += 1
+    return result
+
+
+def _boost_club_temp(weak_club, strong_club):
+    """Temporarily boost weak_club players to create a cup upset scenario.
+    This is an in-memory temporary modification used only during simulation;
+    the match_engine reads current player attributes at the time of simulation."""
+    strong_xi = strong_club.players[:11]
+    weak_xi = weak_club.players[:11]
+    strong_avg = sum(p.overall for p in strong_xi) / max(1, len(strong_xi))
+    weak_avg = sum(p.overall for p in weak_xi) / max(1, len(weak_xi))
+    boost = max(0, int((strong_avg - weak_avg) * 0.75))
+    if boost <= 0:
+        return
+    for p in weak_club.players:
+        for attr in ("shooting", "passing", "pace", "physical", "defending"):
+            setattr(p, attr, min(99, getattr(p, attr) + boost))
 
 
 def play_week(state):
@@ -632,7 +775,10 @@ def play_week(state):
     for fixture in fixtures:
         if fixture.played or fixture.home_id is None or fixture.away_id is None or str(fixture.home_id).startswith("winner:") or str(fixture.away_id).startswith("winner:"):
             continue
-        result = _play_fixture_native(state, fixture)
+        if fixture.competition_id == "league_main":
+            result = _play_fixture_native(state, fixture)
+        else:
+            result = _play_cup_fixture_with_upset(state, fixture)
         fixture.result = result
         fixture.played = True
         _update_match_records(state, fixture, result)
@@ -641,7 +787,7 @@ def play_week(state):
             away = state.clubs[fixture.away_id]
             _apply_league_result(home, away, result)
         else:
-            winner_id = fixture.home_id if result.home_goals >= result.away_goals else fixture.away_id
+            winner_id = _get_cup_winner_id(fixture)
             pair_idx = 0
             try:
                 stage_fixtures = [f for f in next(c for c in state.competitions if c.id == fixture.competition_id).fixtures if f.week == fixture.week]
@@ -650,6 +796,9 @@ def play_week(state):
                 pair_idx = 0
             cup_pair_winners[(fixture.competition_id, fixture.week, pair_idx)] = winner_id
         results.append((fixture, result))
+
+    # Send knockout notifications for cup matches this week
+    _notify_cup_knockouts(state, fixtures, week)
 
     for competition in [c for c in state.competitions if c.competition_type in (CompetitionType.DOMESTIC_CUP, CompetitionType.CONTINENTAL_CUP, CompetitionType.SUPER_CUP) and c.active]:
         _advance_knockout_competition(state, competition, week, cup_pair_winners)
@@ -702,8 +851,11 @@ def _apply_league_result(home, away, result):
 
 
 def _update_match_records(state, fixture, result):
-    home = state.clubs[fixture.home_id]
-    away = state.clubs[fixture.away_id]
+    _pool = state.clubs
+    home = _pool.get(fixture.home_id)
+    away = _pool.get(fixture.away_id)
+    if not home or not away:
+        return
     for p in get_player_selected_squad(home):
         p.appearances += 1
         p.career_appearances += 1
@@ -852,6 +1004,43 @@ def decline_player(player):
 def get_league_table(state):
     clubs = [state.clubs[cid] for cid in state.league.club_ids]
     return sorted(clubs, key=lambda c: (c.points, c.gd, c.goals_for), reverse=True)
+
+
+def get_player_cup_status(state, competition_id):
+    """Return a dict describing the player's status in a given cup competition.
+
+    Returns:
+        {
+            "in_competition": bool,
+            "eliminated_at": str or None,  # stage name if knocked out
+            "reached_final": bool,
+        }
+    """
+    pid = state.player_club_id
+    comp = next((c for c in state.competitions if c.id == competition_id), None)
+    if not comp or comp.competition_type == CompetitionType.LEAGUE:
+        return {"in_competition": False, "eliminated_at": None, "reached_final": False}
+    if pid not in comp.club_ids:
+        return {"in_competition": False, "eliminated_at": None, "reached_final": False}
+
+    eliminated_at = None
+    for fixture in comp.fixtures:
+        if not fixture.played or fixture.result is None:
+            continue
+        if fixture.home_id != pid and fixture.away_id != pid:
+            continue
+        winner_id = _get_cup_winner_id(fixture)
+        if winner_id != pid:
+            eliminated_at = fixture.stage
+            break
+
+    reached_final = any(
+        f.stage == "Final" and (f.home_id == pid or f.away_id == pid)
+        for f in comp.fixtures
+    )
+
+    still_in = eliminated_at is None and not (comp.winner_club_id and comp.winner_club_id != pid and pid in comp.club_ids)
+    return {"in_competition": bool(still_in), "eliminated_at": eliminated_at, "reached_final": reached_final}
 
 
 def get_competition_results(state, competition_id):
@@ -1283,6 +1472,23 @@ def get_post_match_other_results(state, week):
         if fixture.played and fixture.result and not (fixture.home_id == state.player_club_id or fixture.away_id == state.player_club_id):
             lines.append(f"{get_competition_name(state, fixture)}: {fixture.result.score_line}")
     return lines
+
+
+def get_post_match_results_detail(state, week):
+    """Return a list of result dicts for all matches played in a given week,
+    excluding the player's own match.  Each dict has keys: competition, stage, score_line."""
+    results = []
+    for fixture in get_week_fixtures(state, week):
+        if fixture.played and fixture.result:
+            comp_name = get_competition_name(state, fixture)
+            is_player_match = fixture.home_id == state.player_club_id or fixture.away_id == state.player_club_id
+            results.append({
+                "competition": comp_name,
+                "stage": fixture.stage,
+                "score_line": fixture.result.score_line,
+                "is_player_match": is_player_match,
+            })
+    return results
 
 
 def get_season_summary(state):
