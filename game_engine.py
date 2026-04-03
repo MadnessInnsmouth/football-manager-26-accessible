@@ -885,17 +885,51 @@ def get_competition_results(state, competition_id):
 
 
 def get_competition_draw_text(state, competition_id):
+    """Return draw/results text for a competition.
+
+    Only rounds whose teams have been resolved (no 'winner:' placeholders) are
+    shown.  Future rounds that have not yet been drawn are omitted so that
+    semi-finals and finals never appear on week one.
+    """
     comp = next((c for c in state.competitions if c.id == competition_id), None)
     if not comp:
         return []
+
+    # Build a full club lookup (cups include external clubs not in state.clubs)
+    all_clubs: dict = dict(state.clubs)
+    try:
+        all_clubs.update(build_european_competition_pool(state))
+    except Exception:
+        pass
+
     lines = []
-    for round_info in comp.draw_state.get("rounds", []):
-        lines.append(f"{round_info['round']} (Week {round_info['week']}):")
-        for home, away in round_info.get("pairs", []):
-            home_name = state.clubs[home].name if home in state.clubs else home
-            away_name = state.clubs[away].name if away in state.clubs else away
-            lines.append(f"- {home_name} vs {away_name}")
+    # Group fixtures by (stage, week), preserving chronological order
+    stages_seen: dict = {}
+    for fixture in comp.fixtures:
+        key = (fixture.week, fixture.stage)
+        if key not in stages_seen:
+            stages_seen[key] = []
+        stages_seen[key].append(fixture)
+
+    for (week, stage), fixtures in sorted(stages_seen.items()):
+        # Skip rounds where every team is still a placeholder — not yet drawn
+        all_placeholder = all(
+            str(f.home_id).startswith("winner:") and str(f.away_id).startswith("winner:")
+            for f in fixtures
+        )
+        if all_placeholder:
+            continue
+
+        lines.append(f"{stage} (Week {week}):")
+        for f in fixtures:
+            home_name = all_clubs[f.home_id].name if f.home_id in all_clubs else "TBD"
+            away_name = all_clubs[f.away_id].name if f.away_id in all_clubs else "TBD"
+            if f.played and f.result:
+                lines.append(f"- {home_name} {f.result.home_goals} - {f.result.away_goals} {away_name}")
+            else:
+                lines.append(f"- {home_name} vs {away_name}")
         lines.append("")
+
     return lines or ["No draw information available."]
 
 
@@ -984,6 +1018,26 @@ def upgrade_youth_recruitment(club):
 
 def upgrade_scouting(club):
     return _simple_infra_upgrade(club, club.infrastructure.scouting_upgrade_cost(), club.infrastructure.youth.scouting_level, 10, lambda v: setattr(club.infrastructure.youth, "scouting_level", v), "Scouting")
+
+
+def upgrade_club_shop(club):
+    return _simple_infra_upgrade(club, club.infrastructure.club_shop_upgrade_cost(), club.infrastructure.stadium.club_shop_level, 5, lambda v: setattr(club.infrastructure.stadium, "club_shop_level", v), "Club shop")
+
+
+def upgrade_cafe(club):
+    return _simple_infra_upgrade(club, club.infrastructure.cafe_upgrade_cost(), club.infrastructure.stadium.cafe_level, 5, lambda v: setattr(club.infrastructure.stadium, "cafe_level", v), "Cafe")
+
+
+def upgrade_hospitality(club):
+    return _simple_infra_upgrade(club, club.infrastructure.hospitality_upgrade_cost(), club.infrastructure.stadium.hospitality_level, 5, lambda v: setattr(club.infrastructure.stadium, "hospitality_level", v), "Hospitality suite")
+
+
+def upgrade_fan_zone(club):
+    return _simple_infra_upgrade(club, club.infrastructure.fan_zone_upgrade_cost(), club.infrastructure.stadium.fan_zone_level, 5, lambda v: setattr(club.infrastructure.stadium, "fan_zone_level", v), "Fan zone")
+
+
+def upgrade_seating(club):
+    return _simple_infra_upgrade(club, club.infrastructure.stadium_seating_upgrade_cost(club.stadium_capacity), club.infrastructure.stadium.seating_level, 10, lambda v: setattr(club.infrastructure.stadium, "seating_level", v), "Seating")
 
 
 def set_training_intensity(club, intensity):
@@ -1263,16 +1317,30 @@ def process_end_of_season(state):
     table = get_league_table(state)
     player_club = state.clubs[state.player_club_id]
     pos = next((i + 1 for i, c in enumerate(table) if c.id == state.player_club_id), len(table))
+    total = len(table)
     player_club.records.highest_league_finish = min(player_club.records.highest_league_finish, pos)
     player_club.records.most_points = max(player_club.records.most_points, player_club.points)
     player_club.records.most_goals_scored = max(player_club.records.most_goals_scored, player_club.goals_for)
     player_club.records.best_goal_difference = max(player_club.records.best_goal_difference, player_club.gd)
-    if pos == 1:
+    current = _current_tier(state)
+    promoted = pos == 1
+    also_promoted = pos <= max(1, current.promotion_places)
+    relegated = current.relegation_places > 0 and pos > total - current.relegation_places
+    if promoted:
         state.trophies.append(Trophy(TrophyType.LEAGUE_CHAMPION, state.season_number, state.league.name, state.league.tier, competition_id="league_main", country=state.country))
         add_inbox_message(state, "League Champions", f"Congratulations. {player_club.name} are champions of {state.league.name}.", MessageType.COMPETITION)
-    elif pos <= max(1, _current_tier(state).promotion_places):
+    if also_promoted and not promoted:
         state.trophies.append(Trophy(TrophyType.PROMOTION, state.season_number, state.league.name, state.league.tier, competition_id="league_main", country=state.country))
         add_inbox_message(state, "Promotion Secured", f"{player_club.name} secure promotion from {state.league.name}.", MessageType.COMPETITION)
+    if relegated:
+        add_inbox_message(state, "Relegation", f"{player_club.name} have been relegated from {state.league.name}.", MessageType.COMPETITION)
+    # Store the tier change that should be applied next season
+    if (promoted or also_promoted) and state.league.tier > 1:
+        state._next_season_tier = state.league.tier - 1
+    elif relegated:
+        state._next_season_tier = state.league.tier + 1
+    else:
+        state._next_season_tier = state.league.tier
     resolve_european_qualification(state)
 
 
@@ -1283,10 +1351,58 @@ def _current_tier(state):
     return LeagueTier(country=state.country, name=state.league.name, tier=state.league.tier, club_ids=list(state.league.club_ids), promotion_places=1)
 
 
+def _apply_promotion_relegation(state):
+    """Move the player club to the correct tier for the new season."""
+    next_tier_num = getattr(state, "_next_season_tier", state.league.tier)
+    if next_tier_num == state.league.tier:
+        return  # No change
+
+    # Find the target tier in the league system
+    target_tier = next((t for t in state.league_system if t.tier == next_tier_num and t.country == state.country), None)
+    if target_tier is None:
+        return  # Target tier not found; stay put
+
+    player_club = state.clubs[state.player_club_id]
+    old_tier_num = state.league.tier
+    old_tier = next((t for t in state.league_system if t.tier == old_tier_num and t.country == state.country), None)
+
+    # Remove player club from old tier
+    if old_tier and state.player_club_id in old_tier.club_ids:
+        old_tier.club_ids.remove(state.player_club_id)
+
+    # Add player club to new tier (replace one AI club to keep size stable)
+    if state.player_club_id not in target_tier.club_ids:
+        # Replace the last club in the target tier with the player club
+        if target_tier.club_ids:
+            replaced_id = target_tier.club_ids.pop()
+            # Add a new AI club back into the old tier to replace the player
+            if old_tier is not None:
+                old_tier.club_ids.append(replaced_id)
+        target_tier.club_ids.append(state.player_club_id)
+
+    # Update the active league and the player club's tier
+    player_club.league_tier = next_tier_num
+    # Apply new financial profile for the new tier
+    profile = get_league_financial_profile(state.country, next_tier_num)
+    player_club.ticket_price = profile["ticket_price"]
+    player_club.max_debt = profile["max_debt"]
+    player_club.sponsor_income_weekly = max(
+        player_club.sponsor_income_weekly,
+        int((profile["sponsor_range"][0] + profile["sponsor_range"][1]) / 2),
+    )
+
+    # Rebuild the active league for the new tier
+    state.league.tier = next_tier_num
+    state.league.name = target_tier.name
+    state.league.club_ids = list(target_tier.club_ids)
+    state._next_season_tier = next_tier_num
+
+
 def reset_for_new_season(state):
     state.season_over = False
     state.season_number += 1
     state.league.current_week = 1
+    _apply_promotion_relegation(state)
     for club in state.clubs.values():
         club.reset_season_stats()
         club.auto_select_squad()

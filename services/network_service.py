@@ -33,6 +33,7 @@ class NetworkService:
         self.port: int = 0
         self.server_mode: str = "relay"
         self.enabled: bool = True
+        self._room_code: str = ""
 
     def is_enabled(self) -> bool:
         return self.enabled
@@ -51,6 +52,7 @@ class NetworkService:
         self.host = ""
         self.port = 0
         self.server_mode = "relay"
+        self._room_code = ""
 
     def connect_server(
         self,
@@ -77,16 +79,50 @@ class NetworkService:
         self.server_mode = "relay"
         self.host = url
         self._start_reader(ws)
-        return SessionInfo(mode="client", host=url, port=0, connected=True, code=url)
+        return SessionInfo(mode="client", host=url, port=0, connected=True, code="")
 
     def host_session(self, host: str = "0.0.0.0", port: int = 0) -> SessionInfo:
-        return self.connect_server()
+        """Connect to the relay server and request a new room.
+
+        The room code arrives asynchronously as a ``room_created`` event in
+        :meth:`poll_event`.  Call :meth:`get_room_code` after polling for it.
+        """
+        info = self.connect_server()
+        return info
+
+    def request_room(self, club_name: str, country: str) -> bool:
+        """Send a create_room request.  The server will respond with a
+        ``room_created`` event containing the short room code."""
+        return self.send_event("create_room", {"club_name": club_name, "country": country})
+
+    def get_room_code(self) -> str:
+        """Return the room code received from the server, or empty string."""
+        return self._room_code
 
     def wait_for_guest(self, timeout: float = 0.2):
-        return None
+        """Non-blocking check for a guest having joined.  Returns guest payload
+        dict or None.  Re-queues non-matching events so they are not lost."""
+        pending = []
+        found = None
+        try:
+            while True:
+                event = self.inbox.get_nowait()
+                if found is None and event.get("type") == "guest_joined":
+                    found = event.get("payload", {"address": "connected"})
+                else:
+                    pending.append(event)
+        except queue.Empty:
+            pass
+        for e in pending:
+            self.inbox.put(e)
+        return found
 
-    def join_session(self, host: str, port: int = 0) -> SessionInfo:
-        return self.connect_server()
+    def join_session(self, room_code: str, club_name: str = "", country: str = "") -> SessionInfo:
+        """Connect to the relay server and join an existing room by code."""
+        info = self.connect_server()
+        self._room_code = room_code
+        self.send_event("join_room", {"room_code": room_code, "club_name": club_name, "country": country})
+        return info
 
     def create_room(self, club_name: str, country: str) -> bool:
         return self.send_event("create_room", {"club_name": club_name, "country": country})
@@ -109,7 +145,11 @@ class NetworkService:
 
     def poll_event(self):
         try:
-            return self.inbox.get_nowait()
+            event = self.inbox.get_nowait()
+            # Cache room code if this is a room_created event
+            if event.get("type") == "room_created":
+                self._room_code = event.get("payload", {}).get("code", self._room_code)
+            return event
         except queue.Empty:
             return None
 
@@ -122,7 +162,7 @@ class NetworkService:
             host=self.host,
             port=self.port,
             connected=self._ws is not None,
-            code=self.host,
+            code=self._room_code,
         )
 
     def _start_reader(self, ws):
