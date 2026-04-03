@@ -1,5 +1,7 @@
 ﻿"""Accessible GUI for Football Manager 26 - wxPython + NVDA screen reader support."""
 
+import threading
+
 import wx
 
 from speech import speak, priority_announce
@@ -7,6 +9,7 @@ from models import EventType, Club, Position, MessageType
 from database import LEAGUE_DATA, generate_player
 from services.game_service import service as game_engine
 from services.network_service import service as network_service, DEFAULT_PORT
+from services import account_service
 import save_system
 
 
@@ -55,7 +58,7 @@ class FootballManagerApp(wx.Frame):
         self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
         self.Centre()
         self.Show()
-        self.show_main_menu(track=False)
+        self.show_welcome_screen()
         speak("Football Manager 26 Accessible Edition. Press Tab to navigate, Enter to activate buttons.", interrupt=False)
 
     def _on_char_hook(self, event):
@@ -131,6 +134,21 @@ class FootballManagerApp(wx.Frame):
     def autosave(self):
         if self.game_state:
             save_system.autosave_game(self.game_state)
+            self._cloud_save_background()
+
+    def _cloud_save_background(self):
+        """Upload save to cloud in background if logged in. Non-blocking."""
+        if not account_service.is_logged_in() or not self.game_state:
+            return
+
+        def _upload():
+            try:
+                json_str = save_system.serialize_to_json_string(self.game_state)
+                account_service.upload_save(json_str, save_name="default")
+            except (OSError, ValueError, TypeError):
+                pass
+
+        threading.Thread(target=_upload, daemon=True).start()
 
     def _apply_dark_theme(self):
         self.SetBackgroundColour(self.BG)
@@ -253,21 +271,220 @@ class FootballManagerApp(wx.Frame):
         outer.Add(self.match_commentary_list, 1, wx.EXPAND | wx.ALL, 8)
         return outer
 
+    def show_welcome_screen(self):
+        """Initial screen shown on launch. Checks login state and routes accordingly."""
+        self._nav_stack = []
+        self.clear()
+        self.set_status("Welcome")
+        self.sizer.AddStretchSpacer()
+        box = self._add_group(
+            "Welcome to Football Manager 26",
+            "Accessible Edition - A fully text-based, screen reader friendly football management game.",
+        )
+        welcome_text = (
+            "Welcome to Football Manager 26 Accessible Edition!\n\n"
+            "Build your dream club from the ground up. Manage your squad, navigate the transfer market, "
+            "develop youth players, and lead your team to glory across multiple seasons and competitions.\n\n"
+            "Your progress can be saved locally and to the cloud so you never lose your career.\n\n"
+            "Sign in or create an account to enable cloud saves and online multiplayer, "
+            "or continue as a guest to play offline with local saves only."
+        )
+        info = self._make_readable_text(welcome_text, min_height=180)
+        box.Add(info, 0, wx.EXPAND | wx.ALL, 10)
+        if account_service.is_logged_in():
+            username = account_service.get_username()
+            status_lbl = wx.StaticText(self.scroll, label=f"Signed in as: {username}")
+            status_lbl.SetForegroundColour(self.SUCCESS)
+            box.Add(status_lbl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+            continue_btn = wx.Button(self.scroll, label=f"&Continue as {username}", size=(300, 42))
+            self._style_control(continue_btn)
+            continue_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_main_menu(track=True))
+            box.Add(continue_btn, 0, wx.ALL, 6)
+            logout_btn = wx.Button(self.scroll, label="&Log Out and Switch Account", size=(300, 42))
+            self._style_control(logout_btn)
+            logout_btn.Bind(wx.EVT_BUTTON, lambda e: (account_service.logout(), self.show_welcome_screen()))
+            box.Add(logout_btn, 0, wx.ALL, 6)
+            first = continue_btn
+        else:
+            login_btn = wx.Button(self.scroll, label="&Log In", size=(300, 42))
+            self._style_control(login_btn)
+            login_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_login_screen())
+            box.Add(login_btn, 0, wx.ALL, 6)
+            register_btn = wx.Button(self.scroll, label="&Create Account", size=(300, 42))
+            self._style_control(register_btn)
+            register_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_register_screen())
+            box.Add(register_btn, 0, wx.ALL, 6)
+            guest_btn = wx.Button(self.scroll, label="Continue as &Guest (Offline Only)", size=(300, 42))
+            self._style_control(guest_btn)
+            guest_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_main_menu(track=True))
+            box.Add(guest_btn, 0, wx.ALL, 6)
+            first = login_btn
+        quit_btn = wx.Button(self.scroll, label="&Quit Game", size=(300, 42))
+        self._style_control(quit_btn)
+        quit_btn.Bind(wx.EVT_BUTTON, lambda e: self.Close())
+        box.Add(quit_btn, 0, wx.ALL, 6)
+        self.sizer.AddStretchSpacer()
+        self.scroll.Layout()
+        self.scroll.FitInside()
+        if first:
+            wx.CallAfter(first.SetFocus)
+
+    def show_login_screen(self):
+        self._push_nav(self.show_login_screen)
+        self.clear()
+        self.set_status("Log In")
+        self._add_section_heading("Log In", "Enter your username and password to sign in.")
+        box = self._add_group("Account Login", "Sign in to enable cloud saves and online multiplayer.")
+        form = wx.FlexGridSizer(cols=2, vgap=12, hgap=15)
+        form.AddGrowableCol(1)
+        lbl_user = wx.StaticText(self.scroll, label="Username:")
+        lbl_user.SetForegroundColour(self.FG)
+        form.Add(lbl_user, 0, wx.ALIGN_CENTER_VERTICAL)
+        self._login_username = wx.TextCtrl(self.scroll, size=(300, -1))
+        self._style_control(self._login_username)
+        form.Add(self._login_username, 0, wx.EXPAND)
+        lbl_pass = wx.StaticText(self.scroll, label="Password:")
+        lbl_pass.SetForegroundColour(self.FG)
+        form.Add(lbl_pass, 0, wx.ALIGN_CENTER_VERTICAL)
+        self._login_password = wx.TextCtrl(self.scroll, size=(300, -1), style=wx.TE_PASSWORD)
+        self._style_control(self._login_password)
+        form.Add(self._login_password, 0, wx.EXPAND)
+        box.Add(form, 0, wx.ALL | wx.EXPAND, 15)
+        self._login_status = wx.StaticText(self.scroll, label="")
+        self._login_status.SetForegroundColour(self.WARNING)
+        box.Add(self._login_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        btn_row = wx.BoxSizer(wx.HORIZONTAL)
+        login_btn = wx.Button(self.scroll, label="&Log In", size=(200, 42))
+        self._style_control(login_btn)
+        login_btn.Bind(wx.EVT_BUTTON, self._do_login)
+        btn_row.Add(login_btn, 0, wx.ALL, 5)
+        back_btn = wx.Button(self.scroll, label="&Back", size=(200, 42))
+        self._style_control(back_btn)
+        back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_welcome_screen())
+        btn_row.Add(back_btn, 0, wx.ALL, 5)
+        box.Add(btn_row, 0, wx.ALL, 10)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+        wx.CallAfter(self._login_username.SetFocus)
+
+    def _do_login(self, event):
+        username = self._login_username.GetValue().strip()
+        password = self._login_password.GetValue()
+        if not username or not password:
+            self._login_status.SetLabel("Please enter both username and password.")
+            speak("Please enter both username and password.")
+            return
+        self._login_status.SetLabel("Logging in...")
+        self._login_status.SetForegroundColour(self.MUTED_FG)
+        speak("Logging in, please wait.")
+        wx.Yield()
+        result = account_service.login(username, password)
+        if result.ok:
+            self._login_status.SetLabel(f"Welcome back, {result.username}!")
+            self._login_status.SetForegroundColour(self.SUCCESS)
+            speak(f"Logged in. Welcome back, {result.username}.")
+            wx.CallLater(1200, self.show_main_menu, True)
+        else:
+            self._login_status.SetLabel(result.message)
+            self._login_status.SetForegroundColour(self.WARNING)
+            speak(f"Login failed. {result.message}")
+
+    def show_register_screen(self):
+        self._push_nav(self.show_register_screen)
+        self.clear()
+        self.set_status("Create Account")
+        self._add_section_heading("Create Account", "Register a new account for cloud saves and multiplayer.")
+        box = self._add_group("New Account", "Username must be 3-50 characters. Password must be at least 6 characters.")
+        form = wx.FlexGridSizer(cols=2, vgap=12, hgap=15)
+        form.AddGrowableCol(1)
+        for label_text, attr, style in [
+            ("Username:", "_reg_username", 0),
+            ("Email:", "_reg_email", 0),
+            ("Password:", "_reg_password", wx.TE_PASSWORD),
+            ("Confirm Password:", "_reg_confirm", wx.TE_PASSWORD),
+        ]:
+            lbl = wx.StaticText(self.scroll, label=label_text)
+            lbl.SetForegroundColour(self.FG)
+            form.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL)
+            txt = wx.TextCtrl(self.scroll, size=(300, -1), style=style)
+            self._style_control(txt)
+            setattr(self, attr, txt)
+            form.Add(txt, 0, wx.EXPAND)
+        box.Add(form, 0, wx.ALL | wx.EXPAND, 15)
+        self._reg_status = wx.StaticText(self.scroll, label="")
+        self._reg_status.SetForegroundColour(self.WARNING)
+        box.Add(self._reg_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        btn_row = wx.BoxSizer(wx.HORIZONTAL)
+        reg_btn = wx.Button(self.scroll, label="&Create Account", size=(200, 42))
+        self._style_control(reg_btn)
+        reg_btn.Bind(wx.EVT_BUTTON, self._do_register)
+        btn_row.Add(reg_btn, 0, wx.ALL, 5)
+        back_btn = wx.Button(self.scroll, label="&Back", size=(200, 42))
+        self._style_control(back_btn)
+        back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_welcome_screen())
+        btn_row.Add(back_btn, 0, wx.ALL, 5)
+        box.Add(btn_row, 0, wx.ALL, 10)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+        wx.CallAfter(self._reg_username.SetFocus)
+
+    def _do_register(self, event):
+        username = self._reg_username.GetValue().strip()
+        email = self._reg_email.GetValue().strip()
+        password = self._reg_password.GetValue()
+        confirm = self._reg_confirm.GetValue()
+        if not username or not email or not password:
+            self._reg_status.SetLabel("Please fill in all fields.")
+            speak("Please fill in all fields.")
+            return
+        if len(username) < 3 or len(username) > 50:
+            self._reg_status.SetLabel("Username must be between 3 and 50 characters.")
+            speak("Username must be between 3 and 50 characters.")
+            return
+        if len(password) < 6:
+            self._reg_status.SetLabel("Password must be at least 6 characters.")
+            speak("Password must be at least 6 characters.")
+            return
+        if password != confirm:
+            self._reg_status.SetLabel("Passwords do not match.")
+            speak("Passwords do not match.")
+            return
+        self._reg_status.SetLabel("Creating account...")
+        self._reg_status.SetForegroundColour(self.MUTED_FG)
+        speak("Creating account, please wait.")
+        wx.Yield()
+        result = account_service.register(username, email, password)
+        if result.ok:
+            self._reg_status.SetLabel(f"Account created. Welcome, {result.username}!")
+            self._reg_status.SetForegroundColour(self.SUCCESS)
+            speak(f"Account created. Welcome, {result.username}.")
+            wx.CallLater(1200, self.show_main_menu, True)
+        else:
+            self._reg_status.SetLabel(result.message)
+            self._reg_status.SetForegroundColour(self.WARNING)
+            speak(f"Registration failed. {result.message}")
+
     def show_main_menu(self, track=True):
         if track:
             self._nav_stack = []
             self._push_nav(self.show_main_menu)
         self.clear()
-        self.set_status("Welcome Screen")
+        self.set_status("Main Menu")
         self.sizer.AddStretchSpacer()
         box = self._add_group("Football Manager 26", "Accessible Edition. Start a new career or load your last save.")
+        if account_service.is_logged_in():
+            acct_lbl = wx.StaticText(self.scroll, label=f"Signed in as: {account_service.get_username()}")
+            acct_lbl.SetForegroundColour(self.SUCCESS)
+            box.Add(acct_lbl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         if self.has_save_game():
-            save_lbl = wx.StaticText(self.scroll, label="Save game detected. Load Game is available.")
+            save_lbl = wx.StaticText(self.scroll, label="Local save game detected. Load Game is available.")
             save_lbl.SetForegroundColour(self.SUCCESS)
             box.Add(save_lbl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         buttons = [("&New Game", self.show_club_creation)]
         if self.has_save_game():
-            buttons.append(("&Load Game", self._load_existing_game))
+            buttons.append(("&Load Game (Local)", self._load_existing_game))
+        if account_service.is_logged_in():
+            buttons.append(("Load Game from &Cloud", self.show_cloud_load))
         buttons.append(("&Settings", self.show_settings_placeholder))
         buttons.append(("Quick &Multiplayer Match", self.show_quick_multiplayer))
         buttons.append(("Remote Quick &Multiplayer", self.show_remote_multiplayer))
@@ -290,23 +507,44 @@ class FootballManagerApp(wx.Frame):
         self._push_nav(self.show_settings_placeholder)
         self.clear()
         self.set_status("Settings")
-        self._add_section_heading("Settings", "Placeholder for future game settings, audio, controls, multiplayer and accessibility options.")
-        box = self._add_group("Settings Placeholder", "This screen is ready for future expansion.")
+        self._add_section_heading("Settings", "Game settings, account management, and accessibility options.")
+        box_acct = self._add_group("Account", "Manage your online account for cloud saves and multiplayer.")
+        if account_service.is_logged_in():
+            username = account_service.get_username()
+            acct_info = wx.StaticText(self.scroll, label=f"Signed in as: {username}")
+            acct_info.SetForegroundColour(self.SUCCESS)
+            box_acct.Add(acct_info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+            logout_btn = wx.Button(self.scroll, label="&Log Out", size=(200, 42))
+            self._style_control(logout_btn)
+            logout_btn.Bind(wx.EVT_BUTTON, lambda e: (account_service.logout(), speak("Logged out."), self.show_settings_placeholder()))
+            box_acct.Add(logout_btn, 0, wx.ALL, 6)
+        else:
+            acct_info = wx.StaticText(self.scroll, label="Not signed in. Cloud saves and multiplayer require an account.")
+            acct_info.SetForegroundColour(self.WARNING)
+            box_acct.Add(acct_info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+            login_btn = wx.Button(self.scroll, label="&Log In", size=(200, 42))
+            self._style_control(login_btn)
+            login_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_login_screen())
+            box_acct.Add(login_btn, 0, wx.ALL, 6)
+            register_btn = wx.Button(self.scroll, label="&Create Account", size=(200, 42))
+            self._style_control(register_btn)
+            register_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_register_screen())
+            box_acct.Add(register_btn, 0, wx.ALL, 6)
+        box = self._add_group("General Settings", "This screen is ready for future expansion.")
         info = self._make_readable_text(
-            "Settings will be added here later.\n\n"
+            "Additional settings will be added here later.\n\n"
             "Planned areas include:\n"
             "- Accessibility options\n"
             "- Audio and speech preferences\n"
             "- Multiplayer settings\n"
             "- Visual preferences\n"
             "- Save and data management\n",
-            min_height=220,
+            min_height=160,
         )
         box.Add(info, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Welcome Screen", self.show_main_menu)
+        self._simple_back("&Back to Main Menu", self.show_main_menu)
         self.scroll.Layout()
         self.scroll.FitInside()
-        wx.CallAfter(info.SetFocus)
 
     def show_quick_multiplayer(self):
         self._push_nav(self.show_quick_multiplayer)
@@ -637,6 +875,89 @@ class FootballManagerApp(wx.Frame):
             wx.MessageBox("No saved game found.", "Load Game", wx.OK | wx.ICON_INFORMATION)
             self.show_main_menu()
 
+    def show_cloud_load(self):
+        self._push_nav(self.show_cloud_load)
+        self.clear()
+        self.set_status("Load from Cloud")
+        self._add_section_heading("Cloud Saves", "Select a cloud save to download and load.")
+        box = self._add_group("Your Cloud Saves", "Choose a save to load or delete.")
+        saves = account_service.list_saves()
+        if not saves:
+            lbl = wx.StaticText(self.scroll, label="No cloud saves found. Play a game and save to upload your first cloud save.")
+            lbl.SetForegroundColour(self.MUTED_FG)
+            box.Add(lbl, 0, wx.ALL, 10)
+        else:
+            self._cloud_save_list = wx.ListBox(self.scroll, style=wx.LB_SINGLE)
+            self._style_control(self._cloud_save_list, surface=True)
+            self._cloud_save_list.SetMinSize((-1, 200))
+            self._cloud_save_list.SetName("Cloud Saves")
+            self._cloud_save_names = []
+            for s in saves:
+                name = s.get("save_name", "default")
+                updated = s.get("updated_at", "unknown")
+                self._cloud_save_list.Append(f"{name} (last saved: {updated})")
+                self._cloud_save_names.append(name)
+            if self._cloud_save_list.GetCount() > 0:
+                self._cloud_save_list.SetSelection(0)
+            box.Add(self._cloud_save_list, 0, wx.EXPAND | wx.ALL, 10)
+            btn_row = wx.BoxSizer(wx.HORIZONTAL)
+            load_btn = wx.Button(self.scroll, label="&Load Selected Save", size=(220, 42))
+            self._style_control(load_btn)
+            load_btn.Bind(wx.EVT_BUTTON, self._do_cloud_load)
+            btn_row.Add(load_btn, 0, wx.ALL, 5)
+            del_btn = wx.Button(self.scroll, label="&Delete Selected Save", size=(220, 42))
+            self._style_control(del_btn)
+            del_btn.Bind(wx.EVT_BUTTON, self._do_cloud_delete)
+            btn_row.Add(del_btn, 0, wx.ALL, 5)
+            box.Add(btn_row, 0, wx.ALL, 10)
+        self._simple_back("&Back to Main Menu", self.show_main_menu)
+        self.scroll.Layout()
+        self.scroll.FitInside()
+
+    def _do_cloud_load(self, event):
+        sel = self._cloud_save_list.GetSelection()
+        if sel == wx.NOT_FOUND:
+            speak("No save selected.")
+            return
+        save_name = self._cloud_save_names[sel]
+        speak(f"Downloading save {save_name}, please wait.")
+        wx.Yield()
+        result = account_service.download_save(save_name)
+        if result.ok:
+            loaded = save_system.deserialize_from_json_string(result.save_data)
+            if loaded:
+                self.game_state = loaded
+                self._season_prize_awarded = False
+                save_system.save_game(loaded)
+                self.show_dashboard()
+                speak(f"Cloud save {save_name} loaded.", interrupt=False)
+            else:
+                wx.MessageBox("Failed to parse cloud save data.", "Cloud Load", wx.OK | wx.ICON_ERROR)
+                speak("Failed to parse cloud save data.")
+        else:
+            wx.MessageBox(result.message, "Cloud Load", wx.OK | wx.ICON_ERROR)
+            speak(f"Cloud load failed. {result.message}")
+
+    def _do_cloud_delete(self, event):
+        sel = self._cloud_save_list.GetSelection()
+        if sel == wx.NOT_FOUND:
+            speak("No save selected.")
+            return
+        save_name = self._cloud_save_names[sel]
+        confirm = wx.MessageBox(
+            f"Are you sure you want to delete cloud save '{save_name}'? This cannot be undone.",
+            "Confirm Delete", wx.YES_NO | wx.ICON_WARNING,
+        )
+        if confirm != wx.YES:
+            return
+        result = account_service.delete_save(save_name)
+        if result.ok:
+            speak(f"Cloud save {save_name} deleted.")
+            self.show_cloud_load()
+        else:
+            wx.MessageBox(result.message, "Delete Failed", wx.OK | wx.ICON_ERROR)
+            speak(f"Delete failed. {result.message}")
+
     def show_club_creation(self):
         self._push_nav(self.show_club_creation)
         self.clear()
@@ -748,7 +1069,18 @@ class FootballManagerApp(wx.Frame):
 
     def _manual_save(self):
         self.autosave()
-        wx.MessageBox(f"Game saved to {save_system.get_save_path()}", "Save Game", wx.OK | wx.ICON_INFORMATION)
+        if account_service.is_logged_in():
+            wx.MessageBox(
+                f"Game saved locally to {save_system.get_save_path()}\n"
+                f"Cloud save is uploading in the background.",
+                "Save Game", wx.OK | wx.ICON_INFORMATION,
+            )
+        else:
+            wx.MessageBox(
+                f"Game saved locally to {save_system.get_save_path()}\n"
+                f"Sign in to enable cloud saves.",
+                "Save Game", wx.OK | wx.ICON_INFORMATION,
+            )
 
     def _simple_back(self, label="&Back to Main Menu", handler=None):
         btn = wx.Button(self.scroll, label=label)

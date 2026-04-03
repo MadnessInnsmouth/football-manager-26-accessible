@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 DEFAULT_SERVER_URL = "wss://game-server-hub.replit.app/api/multiplayer"
+DEFAULT_PORT = 34888
 
 
 @dataclass

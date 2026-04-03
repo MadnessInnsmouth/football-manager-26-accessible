@@ -318,3 +318,23 @@ def save_game(game_state: GameState):
 
 def autosave_game(game_state: GameState):
     save_game(game_state)
+
+
+def serialize_to_json_string(game_state: GameState) -> str:
+    """Serialize a GameState to a JSON string suitable for cloud save upload."""
+    return json.dumps(_serialize(game_state))
+
+
+def deserialize_from_json_string(json_string: str):
+    """Deserialize a JSON string from a cloud save download into a GameState."""
+    try:
+        raw = json.loads(json_string)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    try:
+        loaded = _deserialize(raw)
+        if isinstance(loaded, GameState):
+            return loaded.ensure_defaults()
+        return _apply_backward_compatibility(raw)
+    except Exception:
+        return None
