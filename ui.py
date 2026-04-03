@@ -1,5 +1,7 @@
 ﻿"""Accessible GUI for Football Manager 26 - wxPython + NVDA screen reader support."""
 
+import threading
+
 import wx
 
 from speech import speak, priority_announce
@@ -138,13 +140,12 @@ class FootballManagerApp(wx.Frame):
         """Upload save to cloud in background if logged in. Non-blocking."""
         if not account_service.is_logged_in() or not self.game_state:
             return
-        import threading
 
         def _upload():
             try:
                 json_str = save_system.serialize_to_json_string(self.game_state)
                 account_service.upload_save(json_str, save_name="default")
-            except Exception:
+            except (OSError, ValueError, TypeError):
                 pass
 
         threading.Thread(target=_upload, daemon=True).start()
@@ -894,7 +895,7 @@ class FootballManagerApp(wx.Frame):
             for s in saves:
                 name = s.get("save_name", "default")
                 updated = s.get("updated_at", "unknown")
-                self._cloud_save_list.Append(f"{name}  (last saved: {updated})")
+                self._cloud_save_list.Append(f"{name} (last saved: {updated})")
                 self._cloud_save_names.append(name)
             if self._cloud_save_list.GetCount() > 0:
                 self._cloud_save_list.SetSelection(0)

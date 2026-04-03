@@ -16,7 +16,20 @@ except ImportError:
     requests = None
 
 BASE_URL = "https://game-server-hub.replit.app/api"
-TOKEN_FILE = Path(os.getenv("APPDATA", ".")) / "FM26" / "auth_token.json"
+
+
+def _get_token_path() -> Path:
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return Path(appdata) / "FM26" / "auth_token.json"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        return Path(xdg) / "FM26" / "auth_token.json"
+    return Path.home() / ".fm26" / "auth_token.json"
+
+
+TOKEN_FILE = _get_token_path()
 
 
 @dataclass
