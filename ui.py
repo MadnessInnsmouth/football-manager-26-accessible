@@ -333,39 +333,51 @@ class FootballManagerApp(wx.Frame):
         self._push_nav(self.show_login_screen)
         self.clear()
         self.set_status("Log In")
-        self._add_section_heading("Log In", "Enter your username and password to sign in.")
-        box = self._add_group("Account Login", "Sign in to enable cloud saves and online multiplayer.")
-        form = wx.FlexGridSizer(cols=2, vgap=12, hgap=15)
+        self.sizer.AddStretchSpacer()
+        self._add_section_heading("Log In to Football Manager 26", "Enter your username and password to sign in.")
+        box = self._add_group(
+            "Account Login",
+            "Sign in with your account to access cloud saves, online multiplayer, and keep your career progress safe.",
+        )
+        form = wx.FlexGridSizer(cols=2, vgap=14, hgap=18)
         form.AddGrowableCol(1)
         lbl_user = wx.StaticText(self.scroll, label="Username:")
         lbl_user.SetForegroundColour(self.FG)
         form.Add(lbl_user, 0, wx.ALIGN_CENTER_VERTICAL)
-        self._login_username = wx.TextCtrl(self.scroll, size=(300, -1))
+        self._login_username = wx.TextCtrl(self.scroll, size=(340, -1))
+        self._login_username.SetName("Username")
         self._style_control(self._login_username)
         form.Add(self._login_username, 0, wx.EXPAND)
         lbl_pass = wx.StaticText(self.scroll, label="Password:")
         lbl_pass.SetForegroundColour(self.FG)
         form.Add(lbl_pass, 0, wx.ALIGN_CENTER_VERTICAL)
-        self._login_password = wx.TextCtrl(self.scroll, size=(300, -1), style=wx.TE_PASSWORD)
+        self._login_password = wx.TextCtrl(self.scroll, size=(340, -1), style=wx.TE_PASSWORD)
+        self._login_password.SetName("Password")
         self._style_control(self._login_password)
         form.Add(self._login_password, 0, wx.EXPAND)
-        box.Add(form, 0, wx.ALL | wx.EXPAND, 15)
+        box.Add(form, 0, wx.ALL | wx.EXPAND, 18)
         self._login_status = wx.StaticText(self.scroll, label="")
         self._login_status.SetForegroundColour(self.WARNING)
-        box.Add(self._login_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        box.Add(self._login_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         btn_row = wx.BoxSizer(wx.HORIZONTAL)
-        login_btn = wx.Button(self.scroll, label="&Log In", size=(200, 42))
+        login_btn = wx.Button(self.scroll, label="&Log In", size=(220, 44))
         self._style_control(login_btn)
         login_btn.Bind(wx.EVT_BUTTON, self._do_login)
-        btn_row.Add(login_btn, 0, wx.ALL, 5)
-        back_btn = wx.Button(self.scroll, label="&Back", size=(200, 42))
+        btn_row.Add(login_btn, 0, wx.ALL, 6)
+        register_link = wx.Button(self.scroll, label="&Create Account Instead", size=(220, 44))
+        self._style_control(register_link)
+        register_link.Bind(wx.EVT_BUTTON, lambda e: self.show_register_screen())
+        btn_row.Add(register_link, 0, wx.ALL, 6)
+        back_btn = wx.Button(self.scroll, label="&Back", size=(220, 44))
         self._style_control(back_btn)
         back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_welcome_screen())
-        btn_row.Add(back_btn, 0, wx.ALL, 5)
-        box.Add(btn_row, 0, wx.ALL, 10)
+        btn_row.Add(back_btn, 0, wx.ALL, 6)
+        box.Add(btn_row, 0, wx.ALL, 12)
+        self.sizer.AddStretchSpacer()
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(self._login_username.SetFocus)
+        speak("Log in screen. Enter your username and password, then press Log In.", interrupt=False)
 
     def _do_login(self, event):
         username = self._login_username.GetValue().strip()
@@ -393,40 +405,52 @@ class FootballManagerApp(wx.Frame):
         self._push_nav(self.show_register_screen)
         self.clear()
         self.set_status("Create Account")
-        self._add_section_heading("Create Account", "Register a new account for cloud saves and multiplayer.")
-        box = self._add_group("New Account", "Username must be 3-50 characters. Password must be at least 6 characters.")
-        form = wx.FlexGridSizer(cols=2, vgap=12, hgap=15)
+        self.sizer.AddStretchSpacer()
+        self._add_section_heading("Create Your Account", "Register a new account for cloud saves and multiplayer.")
+        box = self._add_group(
+            "New Account Registration",
+            "Create a free account to unlock cloud saves and online multiplayer.\n"
+            "Username: 3 to 50 characters. Password: at least 6 characters.",
+        )
+        form = wx.FlexGridSizer(cols=2, vgap=14, hgap=18)
         form.AddGrowableCol(1)
-        for label_text, attr, style in [
-            ("Username:", "_reg_username", 0),
-            ("Email:", "_reg_email", 0),
-            ("Password:", "_reg_password", wx.TE_PASSWORD),
-            ("Confirm Password:", "_reg_confirm", wx.TE_PASSWORD),
+        for label_text, attr, style, name in [
+            ("Username:", "_reg_username", 0, "Username"),
+            ("Email:", "_reg_email", 0, "Email"),
+            ("Password:", "_reg_password", wx.TE_PASSWORD, "Password"),
+            ("Confirm Password:", "_reg_confirm", wx.TE_PASSWORD, "Confirm Password"),
         ]:
             lbl = wx.StaticText(self.scroll, label=label_text)
             lbl.SetForegroundColour(self.FG)
             form.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL)
-            txt = wx.TextCtrl(self.scroll, size=(300, -1), style=style)
+            txt = wx.TextCtrl(self.scroll, size=(340, -1), style=style)
+            txt.SetName(name)
             self._style_control(txt)
             setattr(self, attr, txt)
             form.Add(txt, 0, wx.EXPAND)
-        box.Add(form, 0, wx.ALL | wx.EXPAND, 15)
+        box.Add(form, 0, wx.ALL | wx.EXPAND, 18)
         self._reg_status = wx.StaticText(self.scroll, label="")
         self._reg_status.SetForegroundColour(self.WARNING)
-        box.Add(self._reg_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        box.Add(self._reg_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         btn_row = wx.BoxSizer(wx.HORIZONTAL)
-        reg_btn = wx.Button(self.scroll, label="&Create Account", size=(200, 42))
+        reg_btn = wx.Button(self.scroll, label="&Create Account", size=(220, 44))
         self._style_control(reg_btn)
         reg_btn.Bind(wx.EVT_BUTTON, self._do_register)
-        btn_row.Add(reg_btn, 0, wx.ALL, 5)
-        back_btn = wx.Button(self.scroll, label="&Back", size=(200, 42))
+        btn_row.Add(reg_btn, 0, wx.ALL, 6)
+        login_link = wx.Button(self.scroll, label="&Log In Instead", size=(220, 44))
+        self._style_control(login_link)
+        login_link.Bind(wx.EVT_BUTTON, lambda e: self.show_login_screen())
+        btn_row.Add(login_link, 0, wx.ALL, 6)
+        back_btn = wx.Button(self.scroll, label="&Back", size=(220, 44))
         self._style_control(back_btn)
         back_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_welcome_screen())
-        btn_row.Add(back_btn, 0, wx.ALL, 5)
-        box.Add(btn_row, 0, wx.ALL, 10)
+        btn_row.Add(back_btn, 0, wx.ALL, 6)
+        box.Add(btn_row, 0, wx.ALL, 12)
+        self.sizer.AddStretchSpacer()
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(self._reg_username.SetFocus)
+        speak("Create account screen. Fill in your details and press Create Account.", interrupt=False)
 
     def _do_register(self, event):
         username = self._reg_username.GetValue().strip()
@@ -471,23 +495,20 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self.set_status("Main Menu")
         self.sizer.AddStretchSpacer()
-        box = self._add_group("Football Manager 26", "Accessible Edition. Start a new career or load your last save.")
+        box = self._add_group("Football Manager 26", "Accessible Edition. Start a new career, continue your save, or play online.")
         if account_service.is_logged_in():
             acct_lbl = wx.StaticText(self.scroll, label=f"Signed in as: {account_service.get_username()}")
             acct_lbl.SetForegroundColour(self.SUCCESS)
             box.Add(acct_lbl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-        if self.has_save_game():
-            save_lbl = wx.StaticText(self.scroll, label="Local save game detected. Load Game is available.")
-            save_lbl.SetForegroundColour(self.SUCCESS)
-            box.Add(save_lbl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         buttons = [("&New Game", self.show_club_creation)]
-        if self.has_save_game():
-            buttons.append(("&Load Game (Local)", self._load_existing_game))
+        if self.game_state or self.has_save_game():
+            buttons.append(("&Continue", self._continue_game))
         if account_service.is_logged_in():
-            buttons.append(("Load Game from &Cloud", self.show_cloud_load))
-        buttons.append(("&Settings", self.show_settings_placeholder))
-        buttons.append(("Quick &Multiplayer Match", self.show_quick_multiplayer))
-        buttons.append(("Remote Quick &Multiplayer", self.show_remote_multiplayer))
+            buttons.append(("&Load Game", self.show_cloud_load))
+        if self.game_state and account_service.is_logged_in():
+            buttons.append(("&Save Game", self._cloud_save_explicit))
+        buttons.append(("&Multiplayer", self.show_remote_multiplayer))
+        buttons.append(("S&ettings", self.show_settings_placeholder))
         buttons.append(("&Quit Game", self.Close))
         first = None
         for label, handler in buttons:
@@ -502,6 +523,37 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
         if first:
             wx.CallAfter(first.SetFocus)
+
+    def _continue_game(self):
+        """Continue from in-memory game state or load from local save."""
+        if self.game_state:
+            self.show_dashboard()
+            speak("Continuing your game.", interrupt=False)
+        else:
+            self._load_existing_game()
+
+    def _cloud_save_explicit(self):
+        """Save the current game to the cloud."""
+        if not self.game_state:
+            wx.MessageBox("No active game to save.", "Save Game", wx.OK | wx.ICON_INFORMATION)
+            return
+        if not account_service.is_logged_in():
+            wx.MessageBox("You must be signed in to save to the cloud.", "Save Game", wx.OK | wx.ICON_WARNING)
+            return
+        speak("Saving game to cloud, please wait.")
+        wx.Yield()
+        try:
+            json_str = save_system.serialize_to_json_string(self.game_state)
+            result = account_service.upload_save(json_str, save_name="default")
+            if result.ok:
+                wx.MessageBox("Game saved to cloud successfully.", "Save Game", wx.OK | wx.ICON_INFORMATION)
+                speak("Game saved to cloud successfully.")
+            else:
+                wx.MessageBox(f"Cloud save failed: {result.message}", "Save Game", wx.OK | wx.ICON_ERROR)
+                speak(f"Cloud save failed. {result.message}")
+        except (OSError, ValueError, TypeError) as exc:
+            wx.MessageBox(f"Cloud save error: {exc}", "Save Game", wx.OK | wx.ICON_ERROR)
+            speak("Cloud save encountered an error.")
 
     def show_settings_placeholder(self):
         self._push_nav(self.show_settings_placeholder)
@@ -546,49 +598,12 @@ class FootballManagerApp(wx.Frame):
         self.scroll.Layout()
         self.scroll.FitInside()
 
-    def show_quick_multiplayer(self):
-        self._push_nav(self.show_quick_multiplayer)
-        self.clear()
-        self.set_status("Quick Multiplayer Match")
-        self._add_section_heading("Quick Multiplayer Match", "Basic local multiplayer foundation for quick head-to-head play.")
-        box = self._add_group("Multiplayer Prototype", "This is a basic local quick match placeholder while future server/VPS multiplayer is built.")
-        form = wx.FlexGridSizer(cols=2, vgap=12, hgap=15)
-        form.AddGrowableCol(1)
-        for label, attr, default in [
-            ("Player 1 Club Name:", "mp_club_one", "Home United"),
-            ("Player 2 Club Name:", "mp_club_two", "Away Rovers"),
-            ("Country:", None, None),
-        ]:
-            lbl = wx.StaticText(self.scroll, label=label)
-            lbl.SetForegroundColour(self.FG)
-            form.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL)
-            if label == "Country:":
-                choice = wx.Choice(self.scroll, choices=list(LEAGUE_DATA.keys()))
-                self._style_control(choice)
-                choice.SetSelection(0)
-                self.mp_country = choice
-                form.Add(choice, 0)
-            else:
-                txt = wx.TextCtrl(self.scroll, value=default, size=(280, -1))
-                self._style_control(txt)
-                setattr(self, attr, txt)
-                form.Add(txt, 0, wx.EXPAND)
-        box.Add(form, 0, wx.ALL | wx.EXPAND, 10)
-        btn = wx.Button(self.scroll, label="&Start Local Quick Match")
-        self._style_control(btn)
-        btn.Bind(wx.EVT_BUTTON, self._start_quick_multiplayer_match)
-        box.Add(btn, 0, wx.ALL, 6)
-        self._simple_back("&Back to Welcome Screen", self.show_main_menu)
-        self.scroll.Layout()
-        self.scroll.FitInside()
-        wx.CallAfter(self.mp_club_one.SetFocus)
-
     def show_remote_multiplayer(self):
         self._push_nav(self.show_remote_multiplayer)
         self.clear()
-        self.set_status("Remote Quick Multiplayer")
-        self._add_section_heading("Remote Quick Multiplayer", "Host or join a one versus one match over the internet.")
-        box = self._add_group("Remote Match Setup", "Best simple approach: one player hosts on their machine, the other joins using IP and port. If port forwarding is inconvenient, later we can add relay/VPS support.")
+        self.set_status("Multiplayer")
+        self._add_section_heading("Multiplayer", "Host or join a one versus one match over the internet.")
+        box = self._add_group("Online Match Setup", "One player hosts a session, the other joins using the session code.")
         info = self._make_readable_text(
             "Recommended easy path right now:\n"
             "1. Host creates a session on their machine.\n"
@@ -836,34 +851,6 @@ class FootballManagerApp(wx.Frame):
         club.auto_select_squad()
         return club
 
-    def _start_quick_multiplayer_match(self, event):
-        country = self.mp_country.GetStringSelection()
-        home_name = self.mp_club_one.GetValue().strip() or "Home United"
-        away_name = self.mp_club_two.GetValue().strip() or "Away Rovers"
-        home = self._build_quick_match_club(home_name, country, home=True)
-        away = self._build_quick_match_club(away_name, country, home=False)
-        result = game_engine.simulate_match(home, away)
-        self.clear()
-        self.set_status("Quick Multiplayer Match Result")
-        self._add_section_heading("Quick Multiplayer Match Result", "Prototype local match result between two human-managed clubs.")
-        box = self._add_group("Match Result", "Local quick match simulation complete.")
-        text_lines = [
-            f"{result.home_team} {result.home_goals} - {result.away_goals} {result.away_team}",
-            f"Attendance: {result.attendance:,}",
-            f"Shots: {result.home_shots} - {result.away_shots}",
-            f"Corners: {result.home_corners} - {result.away_corners}",
-            "",
-            "Key Commentary:",
-        ]
-        text_lines.extend(event.commentary for event in result.events[:18])
-        info = self._make_readable_text("\n".join(text_lines), min_height=360)
-        box.Add(info, 1, wx.EXPAND | wx.ALL, 10)
-        self._simple_back("&Back to Welcome Screen", self.show_main_menu)
-        self.scroll.Layout()
-        self.scroll.FitInside()
-        wx.CallAfter(info.SetFocus)
-        speak(f"Quick multiplayer match complete. {result.home_team} {result.home_goals}, {result.away_team} {result.away_goals}.", interrupt=False)
-
     def _load_existing_game(self):
         loaded = save_system.load_game()
         if loaded:
@@ -1056,7 +1043,6 @@ class FootballManagerApp(wx.Frame):
             ("&Match Day", self.show_match_day),
             ("&League Table", self.show_league_table),
             ("&Competitions", self.show_competitions_overview),
-            ("&Save Game", self._manual_save),
             ("&Welcome Screen", self.show_main_menu),
         ]:
             btn = wx.Button(self.scroll, label=label, size=(220, 44))
@@ -1066,21 +1052,6 @@ class FootballManagerApp(wx.Frame):
         box.Add(grid, 0, wx.EXPAND | wx.ALL, 10)
         self.scroll.Layout()
         self.scroll.FitInside()
-
-    def _manual_save(self):
-        self.autosave()
-        if account_service.is_logged_in():
-            wx.MessageBox(
-                f"Game saved locally to {save_system.get_save_path()}\n"
-                f"Cloud save is uploading in the background.",
-                "Save Game", wx.OK | wx.ICON_INFORMATION,
-            )
-        else:
-            wx.MessageBox(
-                f"Game saved locally to {save_system.get_save_path()}\n"
-                f"Sign in to enable cloud saves.",
-                "Save Game", wx.OK | wx.ICON_INFORMATION,
-            )
 
     def _simple_back(self, label="&Back to Main Menu", handler=None):
         btn = wx.Button(self.scroll, label=label)
@@ -1375,7 +1346,27 @@ class FootballManagerApp(wx.Frame):
             self.show_dashboard()
             return
         self._add_section_heading("Match Day", "Review your squad, then play your next fixture and hear the commentary")
-        box = self._add_group("Live Match Centre", "Live commentary is announced and listed as events. It is no longer presented as a text entry field.")
+        fixture = self._week_player_fixtures[0]
+        home_club = gs.clubs[fixture.home_id]
+        away_club = gs.clubs[fixture.away_id]
+        is_home = fixture.home_id == gs.player_club_id
+        opponent = away_club if is_home else home_club
+        competition_name = game_engine.get_competition_name(gs, fixture)
+        match_preview_lines = [f"You are playing against {opponent.name}."]
+        if is_home:
+            match_preview_lines.append(f"Venue: {home_club.stadium_name} (Home)")
+        else:
+            match_preview_lines.append(f"Venue: {away_club.stadium_name} (Away)")
+        match_preview_lines.append(f"Competition: {competition_name}")
+        preview_box = self._add_group("Match Preview", "\n".join(match_preview_lines))
+        speech_text = f"Match Day. You are playing against {opponent.name}."
+        if is_home:
+            speech_text += f" Playing at home, {home_club.stadium_name}."
+        else:
+            speech_text += f" Playing away at {away_club.stadium_name}."
+        speech_text += f" Competition: {competition_name}."
+        speak(speech_text, interrupt=False)
+        box = self._add_group("Live Match Centre", "Live commentary is announced and listed as events.")
         squad_names = [p.full_name for p in game_engine.get_player_selected_squad(club)]
         squad_text = wx.StaticText(self.scroll, label="Selected XI: " + ", ".join(squad_names))
         squad_text.SetForegroundColour(self.MUTED_FG)
