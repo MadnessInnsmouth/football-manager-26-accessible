@@ -696,6 +696,32 @@ def _finance_report_text(state):
     )
 
 
+def get_weekly_facility_income(infra) -> int:
+    """Return total weekly commercial facility income for a club."""
+    return (
+        infra.stadium.club_shop_level * 2200
+        + infra.stadium.cafe_level * 1800
+        + infra.stadium.hospitality_level * 3000
+        + infra.stadium.fan_zone_level * 1500
+    )
+
+
+def get_weekly_infrastructure_upkeep(infra) -> int:
+    """Return total weekly infrastructure upkeep cost for a club."""
+    return (
+        infra.stadium.facilities_level * 1200
+        + infra.training.level * 1500
+        + infra.training.medical_level * 800
+        + infra.youth.level * 900
+        + infra.youth.recruitment_level * 700
+        + infra.youth.scouting_level * 650
+        + infra.stadium.pitch_quality * 600
+        + infra.training.training_ground_level * 700
+        + infra.training.sports_science_level * 900
+        + infra.stadium.parking_level * 500
+    )
+
+
 def _apply_league_result(home, away, result):
     if result.home_goals > result.away_goals:
         home.wins += 1
@@ -818,11 +844,11 @@ def process_weekly_finances(state, week):
     state.finance_history.append(FinanceRecord(week, "Player Wages", -wages))
     club.budget += club.sponsor_income_weekly
     state.finance_history.append(FinanceRecord(week, "Sponsorship", club.sponsor_income_weekly))
-    facility_income = (infra.stadium.club_shop_level * 2200 + infra.stadium.cafe_level * 1800 + infra.stadium.hospitality_level * 3000 + infra.stadium.fan_zone_level * 1500)
+    facility_income = get_weekly_facility_income(infra)
     if facility_income:
         club.budget += facility_income
         state.finance_history.append(FinanceRecord(week, "Facility Revenue", facility_income))
-    upkeep = (infra.stadium.facilities_level * 1200 + infra.training.level * 1500 + infra.training.medical_level * 800 + infra.youth.level * 900 + infra.youth.recruitment_level * 700 + infra.youth.scouting_level * 650 + infra.stadium.pitch_quality * 600 + infra.training.training_ground_level * 700 + infra.training.sports_science_level * 900 + infra.stadium.parking_level * 500)
+    upkeep = get_weekly_infrastructure_upkeep(infra)
     club.budget -= upkeep
     state.finance_history.append(FinanceRecord(week, "Infrastructure Upkeep", -upkeep))
     for fixture in get_player_fixtures(state, week):
@@ -1372,10 +1398,10 @@ def _apply_promotion_relegation(state):
 
     # Add player club to new tier (replace one AI club to keep size stable)
     if state.player_club_id not in target_tier.club_ids:
-        # Replace the last club in the target tier with the player club
+        # Swap the last AI club out of the target tier into the old tier
+        # so both tiers keep the same number of clubs.
         if target_tier.club_ids:
             replaced_id = target_tier.club_ids.pop()
-            # Add a new AI club back into the old tier to replace the player
             if old_tier is not None:
                 old_tier.club_ids.append(replaced_id)
         target_tier.club_ids.append(state.player_club_id)

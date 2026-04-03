@@ -1308,27 +1308,10 @@ class FootballManagerApp(wx.Frame):
         club = self.game_state.clubs[self.game_state.player_club_id]
         infra = club.infrastructure
         self._add_section_heading("Club Finances", "Budget, income, expenses and spending control")
-        # Weekly income breakdown
         wages = club.total_wages
         sponsor = club.sponsor_income_weekly
-        facility_income = (
-            infra.stadium.club_shop_level * 2200
-            + infra.stadium.cafe_level * 1800
-            + infra.stadium.hospitality_level * 3000
-            + infra.stadium.fan_zone_level * 1500
-        )
-        upkeep = (
-            infra.stadium.facilities_level * 1200
-            + infra.training.level * 1500
-            + infra.training.medical_level * 800
-            + infra.youth.level * 900
-            + infra.youth.recruitment_level * 700
-            + infra.youth.scouting_level * 650
-            + infra.stadium.pitch_quality * 600
-            + infra.training.training_ground_level * 700
-            + infra.training.sports_science_level * 900
-            + infra.stadium.parking_level * 500
-        )
+        facility_income = game_engine.get_weekly_facility_income(infra)
+        upkeep = game_engine.get_weekly_infrastructure_upkeep(infra)
         net_weekly = sponsor + facility_income - wages - upkeep
         symbol = "\u00a3" if club.country == "England" else "\u20ac"
         box = self._add_group("Financial Overview", "Current budget position and weekly cash flow.")
@@ -2086,12 +2069,7 @@ class FootballManagerApp(wx.Frame):
         infra = club.infrastructure
         self._add_section_heading("Infrastructure - Stadium", "Capacity, facilities and pitch condition")
         box = self._add_group("Stadium Overview", "Current stadium stats and weekly revenue from facilities.")
-        weekly_facility_income = (
-            infra.stadium.club_shop_level * 2200
-            + infra.stadium.cafe_level * 1800
-            + infra.stadium.hospitality_level * 3000
-            + infra.stadium.fan_zone_level * 1500
-        )
+        weekly_facility_income = game_engine.get_weekly_facility_income(infra)
         self._infra_text(box, [
             f"Stadium: {club.stadium_name}",
             f"Capacity: {club.stadium_capacity:,}  (League avg: {int(bench['seating_capacity']):,})",
