@@ -605,13 +605,14 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self.set_status("Multiplayer")
         self._add_section_heading("Multiplayer", "Host or join a one versus one match over the internet.")
-        box = self._add_group("Online Match Setup", "One player hosts a session, the other joins using the session code.")
+        box = self._add_group("Online Match Setup", "One player hosts a session and shares a short room code. The other player enters that code to join.")
         info = self._make_readable_text(
-            "Recommended easy path right now:\n"
-            "1. Host creates a session on their machine.\n"
-            "2. Host shares the displayed IP:Port with their friend.\n"
-            "3. Friend joins that address directly.\n\n"
-            "For real frictionless internet play later, the next step is adding a lightweight relay or VPS lobby service.\n",
+            "How to play online:\n"
+            "1. Host clicks 'Host Remote Match'. Your club and country are filled in automatically.\n"
+            "2. The game connects to the relay server and gives you a short room code (e.g. ABC123).\n"
+            "3. Share that code with your friend via chat, message, or voice.\n"
+            "4. Your friend clicks 'Join Remote Match', enters the code, and connects.\n"
+            "5. Review your squads, then the host starts the match. Both players see the same result.\n",
             min_height=180,
         )
         box.Add(info, 0, wx.EXPAND | wx.ALL, 10)
@@ -630,65 +631,103 @@ class FootballManagerApp(wx.Frame):
         self.scroll.FitInside()
         wx.CallAfter(host_btn.SetFocus)
 
+    def _mp_default_club_name(self):
+        """Return the player's club name if a game is loaded, else an empty string."""
+        if self.game_state:
+            club = self.game_state.clubs.get(self.game_state.player_club_id)
+            if club:
+                return club.name
+        return ""
+
+    def _mp_default_country(self):
+        """Return the player's country if a game is loaded, else None."""
+        if self.game_state:
+            club = self.game_state.clubs.get(self.game_state.player_club_id)
+            if club:
+                return club.country
+        return None
+
     def show_host_remote_match(self):
         self._push_nav(self.show_host_remote_match)
         self.clear()
         self.set_status("Host Remote Match")
-        self._add_section_heading("Host Remote Match", "Create a direct one-versus-one match session")
-        box = self._add_group("Host Session", "Start listening on your machine and share the session code with your friend.")
+        self._add_section_heading("Host Remote Match", "Create a match room on the relay server and share the code with your opponent")
+        box = self._add_group("Host Session", "Your club details are filled in automatically. Click 'Create Room' to get your room code.")
         form = wx.FlexGridSizer(cols=2, vgap=10, hgap=12)
         form.AddGrowableCol(1)
-        labels = [("Host Club Name:", "host_club_name", "Home United"), ("Country:", None, None), ("Port:", "host_port", str(DEFAULT_PORT))]
-        for label, attr, default in labels:
+        default_name = self._mp_default_club_name() or "Home United"
+        for label, attr, default in [("Your Club Name:", "host_club_name", default_name)]:
             lbl = wx.StaticText(self.scroll, label=label)
             lbl.SetForegroundColour(self.FG)
             form.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL)
-            if label == "Country:":
-                choice = wx.Choice(self.scroll, choices=list(LEAGUE_DATA.keys()))
-                self._style_control(choice)
-                choice.SetSelection(0)
-                self.host_country = choice
-                form.Add(choice, 0)
-            else:
-                txt = wx.TextCtrl(self.scroll, value=default, size=(280, -1))
-                self._style_control(txt)
-                setattr(self, attr, txt)
-                form.Add(txt, 0, wx.EXPAND)
+            txt = wx.TextCtrl(self.scroll, value=default, size=(280, -1))
+            txt.SetName(attr)
+            self._style_control(txt)
+            setattr(self, attr, txt)
+            form.Add(txt, 0, wx.EXPAND)
+        country_lbl = wx.StaticText(self.scroll, label="Country:")
+        country_lbl.SetForegroundColour(self.FG)
+        form.Add(country_lbl, 0, wx.ALIGN_CENTER_VERTICAL)
+        country_choices = list(LEAGUE_DATA.keys())
+        choice = wx.Choice(self.scroll, choices=country_choices)
+        choice.SetName("Country")
+        self._style_control(choice)
+        default_country = self._mp_default_country()
+        if default_country and default_country in country_choices:
+            choice.SetSelection(country_choices.index(default_country))
+        else:
+            choice.SetSelection(0)
+        self.host_country = choice
+        form.Add(choice, 0)
         box.Add(form, 0, wx.ALL | wx.EXPAND, 10)
-        btn = wx.Button(self.scroll, label="Start &Hosting")
+        btn = wx.Button(self.scroll, label="&Create Room")
         self._style_control(btn)
         btn.Bind(wx.EVT_BUTTON, self._start_hosting_remote_match)
         box.Add(btn, 0, wx.ALL, 6)
         self._simple_back("&Back to Remote Multiplayer", self.show_remote_multiplayer)
         self.scroll.Layout()
         self.scroll.FitInside()
+        wx.CallAfter(self.host_club_name.SetFocus)
+
 
     def _start_hosting_remote_match(self, event):
         club_name = self.host_club_name.GetValue().strip() or "Home United"
         country = self.host_country.GetStringSelection()
-        port = int(self.host_port.GetValue() or DEFAULT_PORT)
-        session = network_service.host_session(port=port)
-        host_club = self._build_quick_match_club(club_name, country, home=True)
+        # Use the actual player club if one is loaded, otherwise build a quick-match club
+        if self.game_state:
+            host_club = self.game_state.clubs[self.game_state.player_club_id]
+        else:
+            host_club = self._build_quick_match_club(club_name, country, home=True)
+        try:
+            session = network_service.host_session()
+            network_service.request_room(club_name, country)
+        except Exception as exc:
+            wx.MessageBox(
+                f"Could not connect to the relay server.\n\n{exc}\n\nCheck your internet connection and try again.",
+                "Connection Error",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
         self.show_host_wait_screen(session, host_club, country)
 
     def show_host_wait_screen(self, session, host_club, country):
         self._push_nav(lambda track=False: self.show_host_wait_screen(session, host_club, country))
         self.clear()
         self.set_status("Waiting for Guest")
-        self._add_section_heading("Waiting for Guest", "Share this session code with your friend and wait for them to connect.")
-        box = self._add_group("Host Session Active", f"Session Code: {session.code}")
-        txt = self._make_readable_text(
-            f"Session Code: {session.code}\n\n"
-            f"Your friend should join using this address.\n"
-            f"If you are across different networks, you may need port forwarding on your router for port {session.port}.\n"
-            f"A future VPS relay option will remove that friction.\n",
-            min_height=220,
-        )
-        box.Add(txt, 0, wx.EXPAND | wx.ALL, 10)
+        self._add_section_heading("Waiting for Guest", "Share your room code with your friend and wait for them to join.")
+        box = self._add_group("Host Session Active", "Room code will appear below once the server confirms your room.")
+        self.host_code_label = wx.StaticText(self.scroll, label="Connecting to relay server...")
+        self.host_code_label.SetForegroundColour(self.WARNING)
+        self.host_code_label.SetFont(wx.Font(18, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        box.Add(self.host_code_label, 0, wx.ALL, 14)
+        instruction = wx.StaticText(self.scroll, label="Share the room code above with your friend. They enter it on the Join screen.")
+        instruction.SetForegroundColour(self.MUTED_FG)
+        instruction.Wrap(860)
+        box.Add(instruction, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         self._host_wait_state = {"host_club": host_club, "country": country, "session": session}
-        self.host_wait_label = wx.StaticText(self.scroll, label="Waiting for connection...")
-        self.host_wait_label.SetForegroundColour(self.WARNING)
-        box.Add(self.host_wait_label, 0, wx.ALL, 10)
+        self.host_wait_status = wx.StaticText(self.scroll, label="Waiting for opponent to join...")
+        self.host_wait_status.SetForegroundColour(self.MUTED_FG)
+        box.Add(self.host_wait_status, 0, wx.ALL, 10)
         cancel = wx.Button(self.scroll, label="&Cancel Hosting")
         self._style_control(cancel)
         cancel.Bind(wx.EVT_BUTTON, lambda e: (network_service.reset(), self.show_remote_multiplayer()))
@@ -696,32 +735,63 @@ class FootballManagerApp(wx.Frame):
         self._host_poll_timer = wx.CallLater(300, self._poll_host_session)
         self.scroll.Layout()
         self.scroll.FitInside()
-        wx.CallAfter(txt.SetFocus)
+        wx.CallAfter(self.host_code_label.SetFocus)
 
     def _poll_host_session(self):
-        result = network_service.wait_for_guest()
-        if result:
-            self.host_wait_label.SetLabel(f"Guest connected from {result['address']}")
-            network_service.send_event("host_ready", {"club_name": self._host_wait_state['host_club'].name, "country": self._host_wait_state['country']})
-            self.show_remote_host_lobby()
-            return
+        event = network_service.poll_event()
+        if event:
+            etype = event.get("type")
+            if etype == "room_created":
+                code = event.get("payload", {}).get("code", "")
+                if code:
+                    self.host_code_label.SetLabel(f"Room Code: {code}")
+                    self.host_code_label.SetForegroundColour(self.SUCCESS)
+                    speak(f"Room code: {' '.join(code)}. Share this with your friend.", interrupt=False)
+                    self.scroll.Layout()
+            elif etype == "guest_joined":
+                payload = event.get("payload", {})
+                guest_name = payload.get("club_name", "Opponent")
+                self.host_wait_status.SetLabel(f"Opponent joined: {guest_name}. Opening lobby...")
+                self._host_wait_state["guest_club_name"] = guest_name
+                network_service.send_event("host_ready", {
+                    "club_name": self._host_wait_state["host_club"].name,
+                    "country": self._host_wait_state["country"],
+                })
+                self.show_remote_host_lobby()
+                return
         self._host_poll_timer = wx.CallLater(300, self._poll_host_session)
 
     def show_remote_host_lobby(self):
         self._push_nav(self.show_remote_host_lobby)
         self.clear()
         self.set_status("Remote Match Lobby")
-        self._add_section_heading("Remote Match Lobby", "Connected. Ready to start the quick match.")
-        box = self._add_group("Host Lobby", "Waiting for both clubs and then the host can launch the match.")
-        self.remote_lobby_text = self._make_readable_text("Connected. Waiting for guest club information...", min_height=220)
+        self._add_section_heading("Remote Match Lobby", "Opponent connected. Review your squad then start the match.")
+        host_club = self._host_wait_state["host_club"]
+        guest_name = self._host_wait_state.get("guest_club_name", "Opponent")
+        box = self._add_group("Match Preview", f"You: {host_club.name}  vs  Opponent: {guest_name}")
+        # Show the host's squad
+        selected = game_engine.get_player_selected_squad(host_club) if self.game_state else []
+        squad_lines = ["Your Selected Squad:"] + [
+            f"  {p.position.value}: {p.full_name} (OVR {p.overall})" for p in selected
+        ] if selected else ["Your Selected Squad: (auto-selected)"]
+        self.remote_lobby_text = self._make_readable_text("\n".join(squad_lines), min_height=280)
         box.Add(self.remote_lobby_text, 0, wx.EXPAND | wx.ALL, 10)
-        start_btn = wx.Button(self.scroll, label="&Start Remote Quick Match")
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        start_btn = wx.Button(self.scroll, label="&Start Remote Match")
         self._style_control(start_btn)
         start_btn.Bind(wx.EVT_BUTTON, self._start_remote_host_match)
-        box.Add(start_btn, 0, wx.ALL, 5)
+        row.Add(start_btn, 0, wx.ALL, 5)
+        if self.game_state:
+            squad_btn = wx.Button(self.scroll, label="Change &Squad")
+            self._style_control(squad_btn)
+            squad_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_squad())
+            row.Add(squad_btn, 0, wx.ALL, 5)
+        box.Add(row, 0, wx.ALL, 5)
         self._remote_poll_timer = wx.CallLater(300, self._poll_remote_lobby_host)
         self.scroll.Layout()
         self.scroll.FitInside()
+        wx.CallAfter(self.remote_lobby_text.SetFocus)
+        speak(f"Opponent connected. Your squad is shown. Press Start Remote Match when ready.", interrupt=False)
 
     def _poll_remote_lobby_host(self):
         event = network_service.poll_event()
@@ -729,14 +799,15 @@ class FootballManagerApp(wx.Frame):
             if event.get("type") == "guest_ready":
                 payload = event.get("payload", {})
                 self._host_wait_state["guest_club_name"] = payload.get("club_name", "Away Rovers")
-                self.remote_lobby_text.SetValue(f"Guest connected with club: {self._host_wait_state['guest_club_name']}\nPress Start Remote Quick Match when ready.")
+                lines = self.remote_lobby_text.GetValue().split("\n")
+                self.remote_lobby_text.SetValue("\n".join(lines) + f"\n\nOpponent club confirmed: {self._host_wait_state['guest_club_name']}")
                 return
         self._remote_poll_timer = wx.CallLater(300, self._poll_remote_lobby_host)
 
     def _start_remote_host_match(self, event):
-        state = self._host_wait_state
-        home = state["host_club"]
-        away = self._build_quick_match_club(state.get("guest_club_name", "Away Rovers"), state["country"], home=False)
+        state_data = self._host_wait_state
+        home = state_data["host_club"]
+        away = self._build_quick_match_club(state_data.get("guest_club_name", "Away Rovers"), state_data["country"], home=False)
         result = game_engine.simulate_match(home, away)
         payload = {
             "score": f"{result.home_team} {result.home_goals} - {result.away_goals} {result.away_team}",
@@ -750,41 +821,63 @@ class FootballManagerApp(wx.Frame):
         self._push_nav(self.show_join_remote_match)
         self.clear()
         self.set_status("Join Remote Match")
-        self._add_section_heading("Join Remote Match", "Connect to a host using IP and port")
-        box = self._add_group("Join Session", "Enter the host IP address and port, then connect.")
+        self._add_section_heading("Join Remote Match", "Enter the room code your opponent shared with you")
+        box = self._add_group("Join Session", "Enter the room code and your club name, then press Join.")
         form = wx.FlexGridSizer(cols=2, vgap=10, hgap=12)
         form.AddGrowableCol(1)
-        for label, attr, default in [("Host IP:", "join_host_ip", "127.0.0.1"), ("Port:", "join_port", str(DEFAULT_PORT)), ("Your Club Name:", "join_club_name", "Away Rovers"), ("Country:", None, None)]:
+        default_club = self._mp_default_club_name() or "Away Rovers"
+        for label, attr, default in [
+            ("Room Code:", "join_room_code", ""),
+            ("Your Club Name:", "join_club_name", default_club),
+        ]:
             lbl = wx.StaticText(self.scroll, label=label)
             lbl.SetForegroundColour(self.FG)
             form.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL)
-            if label == "Country:":
-                choice = wx.Choice(self.scroll, choices=list(LEAGUE_DATA.keys()))
-                self._style_control(choice)
-                choice.SetSelection(0)
-                self.join_country = choice
-                form.Add(choice, 0)
-            else:
-                txt = wx.TextCtrl(self.scroll, value=default, size=(280, -1))
-                self._style_control(txt)
-                setattr(self, attr, txt)
-                form.Add(txt, 0, wx.EXPAND)
+            txt = wx.TextCtrl(self.scroll, value=default, size=(280, -1))
+            txt.SetName(label.rstrip(":"))
+            self._style_control(txt)
+            setattr(self, attr, txt)
+            form.Add(txt, 0, wx.EXPAND)
+        country_lbl = wx.StaticText(self.scroll, label="Country:")
+        country_lbl.SetForegroundColour(self.FG)
+        form.Add(country_lbl, 0, wx.ALIGN_CENTER_VERTICAL)
+        country_choices = list(LEAGUE_DATA.keys())
+        choice = wx.Choice(self.scroll, choices=country_choices)
+        choice.SetName("Country")
+        self._style_control(choice)
+        default_country = self._mp_default_country()
+        if default_country and default_country in country_choices:
+            choice.SetSelection(country_choices.index(default_country))
+        else:
+            choice.SetSelection(0)
+        self.join_country = choice
+        form.Add(choice, 0)
         box.Add(form, 0, wx.ALL | wx.EXPAND, 10)
-        btn = wx.Button(self.scroll, label="&Join Session")
+        btn = wx.Button(self.scroll, label="&Join Room")
         self._style_control(btn)
         btn.Bind(wx.EVT_BUTTON, self._join_remote_session)
         box.Add(btn, 0, wx.ALL, 6)
         self._simple_back("&Back to Remote Multiplayer", self.show_remote_multiplayer)
         self.scroll.Layout()
         self.scroll.FitInside()
+        wx.CallAfter(self.join_room_code.SetFocus)
 
     def _join_remote_session(self, event):
-        host = self.join_host_ip.GetValue().strip() or "127.0.0.1"
-        port = int(self.join_port.GetValue() or DEFAULT_PORT)
+        room_code = self.join_room_code.GetValue().strip().upper()
+        if not room_code:
+            wx.MessageBox("Please enter the room code your opponent shared with you.", "Join Room", wx.OK | wx.ICON_WARNING)
+            return
         club_name = self.join_club_name.GetValue().strip() or "Away Rovers"
         country = self.join_country.GetStringSelection()
-        network_service.join_session(host, port)
-        network_service.send_event("guest_ready", {"club_name": club_name, "country": country})
+        try:
+            network_service.join_session(room_code, club_name, country)
+        except Exception as exc:
+            wx.MessageBox(
+                f"Could not connect to the relay server.\n\n{exc}\n\nCheck your internet connection and the room code.",
+                "Connection Error",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
         self.show_join_wait_screen(club_name)
 
     def show_join_wait_screen(self, club_name):
@@ -793,8 +886,22 @@ class FootballManagerApp(wx.Frame):
         self.set_status("Connected to Host")
         self._add_section_heading("Connected to Host", "Waiting for the host to start the match")
         box = self._add_group("Guest Lobby", f"Your club: {club_name}")
-        text = self._make_readable_text("Connected successfully. Waiting for host to start the quick match...", min_height=220)
+        # Show your squad if one is loaded
+        squad_text = "Connected. Waiting for host to start the match...\n"
+        if self.game_state:
+            guest_club = self.game_state.clubs[self.game_state.player_club_id]
+            selected = game_engine.get_player_selected_squad(guest_club)
+            if selected:
+                squad_text += "\nYour Selected Squad:\n" + "\n".join(
+                    f"  {p.position.value}: {p.full_name} (OVR {p.overall})" for p in selected
+                )
+        text = self._make_readable_text(squad_text, min_height=280)
         box.Add(text, 0, wx.EXPAND | wx.ALL, 10)
+        if self.game_state:
+            squad_btn = wx.Button(self.scroll, label="Change &Squad")
+            self._style_control(squad_btn)
+            squad_btn.Bind(wx.EVT_BUTTON, lambda e: self.show_squad())
+            box.Add(squad_btn, 0, wx.ALL, 5)
         self._guest_poll_timer = wx.CallLater(300, self._poll_guest_wait)
         self.scroll.Layout()
         self.scroll.FitInside()
@@ -852,6 +959,7 @@ class FootballManagerApp(wx.Frame):
         club.players = squad
         club.auto_select_squad()
         return club
+
 
     def _load_existing_game(self):
         loaded = save_system.load_game()
@@ -1198,19 +1306,38 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self._top_header()
         club = self.game_state.clubs[self.game_state.player_club_id]
-        self._add_section_heading("Club Finances", "Current budget, transfer budget, wage budget and spending control")
-        box = self._add_group("Financial Control Centre", "Review how much money is available and set a transfer spending limit.")
+        infra = club.infrastructure
+        self._add_section_heading("Club Finances", "Budget, income, expenses and spending control")
+        wages = club.total_wages
+        sponsor = club.sponsor_income_weekly
+        facility_income = game_engine.get_weekly_facility_income(infra)
+        upkeep = game_engine.get_weekly_infrastructure_upkeep(infra)
+        net_weekly = sponsor + facility_income - wages - upkeep
+        symbol = "\u00a3" if club.country == "England" else "\u20ac"
+        box = self._add_group("Financial Overview", "Current budget position and weekly cash flow.")
         text = self._make_readable_text(
-            f"Current Overall Budget: {club.budget:,}\n"
-            f"Current Transfer Budget: {club.transfer_budget:,}\n"
-            f"Transfer Spending Limit: {club.transfer_spending_limit:,}\n"
-            f"Weekly Wage Budget: {club.wage_budget_weekly:,}\n"
-            f"Current Weekly Wages: {club.total_wages:,}\n"
-            f"Balance: {club.balance:,}\n"
-            f"Debt: {club.debt:,}\n"
-            f"Players Sold This Season: {club.sold_players_income_season:,}\n"
-            f"Players Bought This Season: {club.bought_players_spend_season:,}\n",
-            min_height=240,
+            f"Overall Budget:            {symbol}{club.budget:>12,}\n"
+            f"Transfer Budget:           {symbol}{club.transfer_budget:>12,}\n"
+            f"Transfer Spending Limit:   {symbol}{club.transfer_spending_limit:>12,}\n"
+            f"Balance:                   {symbol}{club.balance:>12,}\n"
+            f"Debt:                      {symbol}{club.debt:>12,}\n"
+            f"\n"
+            f"--- Weekly Cash Flow ---\n"
+            f"  Sponsorship Income:      {symbol}{sponsor:>12,}\n"
+            f"  Facility Revenue:        {symbol}{facility_income:>12,}\n"
+            f"  Player Wages:           -{symbol}{wages:>12,}\n"
+            f"  Infrastructure Upkeep:  -{symbol}{upkeep:>12,}\n"
+            f"  Net Weekly (excl. match day): {symbol}{net_weekly:>10,}\n"
+            f"\n"
+            f"--- Wage Budget ---\n"
+            f"  Weekly Wage Budget:      {symbol}{club.wage_budget_weekly:>12,}\n"
+            f"  Current Weekly Wages:    {symbol}{wages:>12,}\n"
+            f"  Wage Budget Remaining:   {symbol}{max(0, club.wage_budget_weekly - wages):>12,}\n"
+            f"\n"
+            f"--- Season Transfers ---\n"
+            f"  Players Sold Income:     {symbol}{club.sold_players_income_season:>12,}\n"
+            f"  Players Bought Spend:    {symbol}{club.bought_players_spend_season:>12,}\n",
+            min_height=380,
         )
         box.Add(text, 0, wx.EXPAND | wx.ALL, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
@@ -1218,6 +1345,7 @@ class FootballManagerApp(wx.Frame):
         lbl.SetForegroundColour(self.FG)
         row.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         self.finance_limit = wx.SpinCtrl(self.scroll, min=0, max=max(1000, club.budget * 3), initial=int(club.transfer_spending_limit or club.transfer_budget))
+        self.finance_limit.SetName("Transfer Spending Limit")
         self._style_control(self.finance_limit)
         row.Add(self.finance_limit, 0, wx.RIGHT, 8)
         save_btn = wx.Button(self.scroll, label="&Apply Limit")
@@ -1229,6 +1357,7 @@ class FootballManagerApp(wx.Frame):
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(text.SetFocus)
+
 
     def _apply_finance_limit(self, event):
         club = self.game_state.clubs[self.game_state.player_club_id]
@@ -1937,46 +2066,76 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self._top_header()
         club, bench = self._bench()
-        self._add_section_heading("Infrastructure - Stadium", "Capacity planning and pitch condition")
-        box = self._add_group("Stadium Planning", "Use the combo box or slider to preview a new stadium capacity and hear the cost.")
+        infra = club.infrastructure
+        self._add_section_heading("Infrastructure - Stadium", "Capacity, facilities and pitch condition")
+        box = self._add_group("Stadium Overview", "Current stadium stats and weekly revenue from facilities.")
+        weekly_facility_income = game_engine.get_weekly_facility_income(infra)
+        self._infra_text(box, [
+            f"Stadium: {club.stadium_name}",
+            f"Capacity: {club.stadium_capacity:,}  (League avg: {int(bench['seating_capacity']):,})",
+            f"Seating Level: {infra.stadium.seating_level}/10  ({game_engine.describe_relative(infra.stadium.seating_level, bench['seating_level'])})",
+            f"Pitch Quality: {infra.stadium.pitch_quality}/10  ({game_engine.describe_relative(infra.stadium.pitch_quality, bench['pitch_quality'])})",
+            f"",
+            f"--- Commercial Facilities (weekly income) ---",
+            f"  Club Shop:      Level {infra.stadium.club_shop_level}/5  (+{infra.stadium.club_shop_level * 2200:,} pw)",
+            f"  Cafe:           Level {infra.stadium.cafe_level}/5  (+{infra.stadium.cafe_level * 1800:,} pw)",
+            f"  Hospitality:    Level {infra.stadium.hospitality_level}/5  (+{infra.stadium.hospitality_level * 3000:,} pw)",
+            f"  Fan Zone:       Level {infra.stadium.fan_zone_level}/5  (+{infra.stadium.fan_zone_level * 1500:,} pw)",
+            f"  Total Facility Income: {weekly_facility_income:,} per week",
+        ])
+        # Capacity upgrade row
         target_default = max(club.stadium_capacity + 1000, 5000)
         step_values = [str(v) for v in range(max(1000, club.stadium_capacity), max(club.stadium_capacity + 20000, 20000) + 1, 1000)]
-        self._infra_text(box, [
-            f"Current Stadium: {club.stadium_name}",
-            f"Current Capacity: {club.stadium_capacity:,}",
-            f"League Standard Capacity: {int(bench['seating_capacity']):,}",
-            f"Pitch Quality: {club.infrastructure.stadium.pitch_quality} ({game_engine.describe_relative(club.infrastructure.stadium.pitch_quality, bench['pitch_quality'])})",
-            f"Seating Level: {club.infrastructure.stadium.seating_level} ({game_engine.describe_relative(club.infrastructure.stadium.seating_level, bench['seating_level'])})",
-        ])
-        row = wx.BoxSizer(wx.HORIZONTAL)
+        cap_box = self._add_group("Expand Capacity", "Select a target capacity to preview the cost, then confirm.")
+        cap_row = wx.BoxSizer(wx.HORIZONTAL)
         lbl = wx.StaticText(self.scroll, label="Target Capacity:")
         lbl.SetForegroundColour(self.FG)
-        row.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        cap_row.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         self.capacity_combo = wx.ComboBox(self.scroll, choices=step_values, style=wx.CB_DROPDOWN)
+        self.capacity_combo.SetName("Target Capacity")
         self._style_control(self.capacity_combo)
         self.capacity_combo.SetValue(str(target_default))
         self.capacity_combo.Bind(wx.EVT_TEXT, self._update_capacity_price_label)
         self.capacity_combo.Bind(wx.EVT_COMBOBOX, self._update_capacity_price_label)
-        row.Add(self.capacity_combo, 0, wx.RIGHT, 10)
+        cap_row.Add(self.capacity_combo, 0, wx.RIGHT, 10)
         self.capacity_slider = wx.Slider(self.scroll, minValue=max(1000, club.stadium_capacity), maxValue=max(club.stadium_capacity + 20000, 20000), value=target_default, style=wx.SL_HORIZONTAL | wx.SL_LABELS)
         self._style_control(self.capacity_slider)
         self.capacity_slider.Bind(wx.EVT_SLIDER, self._on_capacity_slider)
-        row.Add(self.capacity_slider, 1)
-        box.Add(row, 0, wx.EXPAND | wx.ALL, 10)
+        cap_row.Add(self.capacity_slider, 1)
+        cap_box.Add(cap_row, 0, wx.EXPAND | wx.ALL, 10)
         self.capacity_price_label = wx.StaticText(self.scroll, label="")
         self.capacity_price_label.SetForegroundColour(self.MUTED_FG)
-        box.Add(self.capacity_price_label, 0, wx.ALL, 10)
+        cap_box.Add(self.capacity_price_label, 0, wx.ALL, 10)
         self._update_capacity_price_label()
-        btns = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in [("Increase &Capacity", self._confirm_stadium_capacity_upgrade), ("Upgrade &Pitch", lambda e: self._do_infra_upgrade(game_engine.upgrade_pitch, self.show_stadium_screen))]:
+        cap_btns = wx.BoxSizer(wx.HORIZONTAL)
+        for label, handler in [
+            ("Increase &Capacity", self._confirm_stadium_capacity_upgrade),
+            ("Upgrade &Seating", lambda e: self._do_infra_upgrade(game_engine.upgrade_seating, self.show_stadium_screen)),
+            ("Upgrade &Pitch", lambda e: self._do_infra_upgrade(game_engine.upgrade_pitch, self.show_stadium_screen)),
+        ]:
             btn = wx.Button(self.scroll, label=label)
             self._style_control(btn)
             btn.Bind(wx.EVT_BUTTON, handler)
-            btns.Add(btn, 0, wx.ALL, 5)
-        box.Add(btns, 0, wx.ALL, 10)
+            cap_btns.Add(btn, 0, wx.ALL, 5)
+        cap_box.Add(cap_btns, 0, wx.ALL, 10)
+        # Facilities upgrade grid
+        fac_box = self._add_group("Upgrade Facilities", "Improve commercial facilities to boost weekly match day and off-season income.")
+        fac_grid = wx.GridSizer(cols=2, vgap=8, hgap=8)
+        for label, fn in [
+            ("Upgrade Club &Shop", game_engine.upgrade_club_shop),
+            ("Upgrade &Cafe", game_engine.upgrade_cafe),
+            ("Upgrade &Hospitality", game_engine.upgrade_hospitality),
+            ("Upgrade Fan &Zone", game_engine.upgrade_fan_zone),
+        ]:
+            btn = wx.Button(self.scroll, label=label)
+            self._style_control(btn)
+            btn.Bind(wx.EVT_BUTTON, lambda e, f=fn: self._do_infra_upgrade(f, self.show_stadium_screen))
+            fac_grid.Add(btn, 0, wx.EXPAND)
+        fac_box.Add(fac_grid, 0, wx.EXPAND | wx.ALL, 10)
         self._simple_back("&Back to Infrastructure", self.show_infrastructure_hub)
         self.scroll.Layout()
         self.scroll.FitInside()
+
 
     def _on_capacity_slider(self, event):
         value = self.capacity_slider.GetValue()
@@ -2170,10 +2329,29 @@ class FootballManagerApp(wx.Frame):
         club = summary["player_club"]
         symbol = "\u00a3" if summary["currency"] == "GBP" else "\u20ac"
         box = self._add_group("Season Review", "Your final league standing and reward overview.")
-        lines = [f"Final Position: {summary['position']} of {summary['total_clubs']}", f"Points: {club.points} - Goal Difference: {club.gd:+d}", f"Prize Money: {symbol}{summary['prize_money']:,}"]
+        pos = summary["position"]
+        total = summary["total_clubs"]
+        # Work out promotion/relegation outcome
+        next_tier = getattr(gs, "_next_season_tier", gs.league.tier)
+        if next_tier < gs.league.tier:
+            outcome_line = f"PROMOTED to tier {next_tier}! You will play in a higher division next season."
+        elif next_tier > gs.league.tier:
+            outcome_line = f"RELEGATED to tier {next_tier}. You will play in a lower division next season."
+        else:
+            outcome_line = "Staying in the same division next season."
+        lines = [
+            f"League: {gs.league.name}",
+            f"Final Position: {pos} of {total}",
+            f"Points: {club.points}   Goal Difference: {club.gd:+d}",
+            f"Goals For: {club.goals_for}   Goals Against: {club.goals_against}",
+            f"",
+            outcome_line,
+            f"",
+            f"Prize Money: {symbol}{summary['prize_money']:,}",
+        ]
         if summary.get("messages"):
-            lines.append("Messages: " + " | ".join(summary["messages"]))
-        info = self._make_readable_text("\n".join(lines), min_height=220)
+            lines.append("Recent Messages: " + " | ".join(summary["messages"]))
+        info = self._make_readable_text("\n".join(lines), min_height=260)
         box.Add(info, 0, wx.EXPAND | wx.ALL, 10)
         if not self._season_prize_awarded:
             club.budget += summary["prize_money"]
@@ -2187,7 +2365,7 @@ class FootballManagerApp(wx.Frame):
         self.scroll.Layout()
         self.scroll.FitInside()
         wx.CallAfter(info.SetFocus)
-        speak(f"Season over. Final position: {summary['position']} of {summary['total_clubs']}. Press Start New Season to continue.", interrupt=False)
+        speak(f"Season over. {outcome_line} Final position {pos} of {total}. Press Start New Season to continue.", interrupt=False)
 
     def _start_new_season(self, event=None):
         self._season_prize_awarded = False
@@ -2196,6 +2374,7 @@ class FootballManagerApp(wx.Frame):
         self._nav_stack = []
         self.show_dashboard(track=True)
         speak("New season started.", interrupt=False)
+
 
     def show_competitions_overview(self):
         self._push_nav(self.show_competitions_overview)
