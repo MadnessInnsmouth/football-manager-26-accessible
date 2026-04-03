@@ -582,8 +582,18 @@ def set_selected_squad(club, player_ids):
 
 def _play_fixture_native(state, fixture):
     from engine_bridge import bridge as backend_bridge
-    home = state.clubs[fixture.home_id]
-    away = state.clubs[fixture.away_id]
+    club_pool = state.clubs
+    home = club_pool.get(fixture.home_id)
+    away = club_pool.get(fixture.away_id)
+    if home is None or away is None:
+        # Build European pool to resolve external clubs
+        pool = build_european_competition_pool(state)
+        if home is None:
+            home = pool.get(fixture.home_id)
+        if away is None:
+            away = pool.get(fixture.away_id)
+    if home is None or away is None:
+        raise KeyError(f"Club IDs not found in available pools: home={fixture.home_id}, away={fixture.away_id}")
     return backend_bridge.simulate_match(home, away)
 
 
@@ -621,7 +631,9 @@ def _advance_knockout_competition(state, competition, week, results_by_pair):
             if winner_id == state.player_club_id:
                 add_inbox_message(state, f"Competition Won: {competition.name}", f"You have won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
             elif state.player_club_id in competition.club_ids:
-                add_inbox_message(state, f"Competition Finished: {competition.name}", f"{state.clubs[winner_id].name} won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
+                winner_club = state.clubs.get(winner_id)
+                winner_name = winner_club.name if winner_club else "Unknown Club"
+                add_inbox_message(state, f"Competition Finished: {competition.name}", f"{winner_name} won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
 
 
 def play_week(state):
@@ -666,8 +678,7 @@ def play_week(state):
         process_end_of_season(state)
     if week % 4 == 0:
         refresh_transfer_market(state)
-    if week % 2 == 0:
-        add_inbox_message(state, f"Weekly Finance Report - Week {week}", _finance_report_text(state), MessageType.FINANCE)
+    add_inbox_message(state, f"Weekly Finance Report - Week {week}", _finance_report_text(state), MessageType.FINANCE)
     return results
 
 
@@ -702,8 +713,16 @@ def _apply_league_result(home, away, result):
 
 
 def _update_match_records(state, fixture, result):
-    home = state.clubs[fixture.home_id]
-    away = state.clubs[fixture.away_id]
+    home = state.clubs.get(fixture.home_id)
+    away = state.clubs.get(fixture.away_id)
+    if home is None or away is None:
+        pool = build_european_competition_pool(state)
+        if home is None:
+            home = pool.get(fixture.home_id)
+        if away is None:
+            away = pool.get(fixture.away_id)
+    if home is None or away is None:
+        return
     for p in get_player_selected_squad(home):
         p.appearances += 1
         p.career_appearances += 1
@@ -1255,7 +1274,6 @@ def process_end_of_season(state):
         state.trophies.append(Trophy(TrophyType.PROMOTION, state.season_number, state.league.name, state.league.tier, competition_id="league_main", country=state.country))
         add_inbox_message(state, "Promotion Secured", f"{player_club.name} secure promotion from {state.league.name}.", MessageType.COMPETITION)
     resolve_european_qualification(state)
-    reset_for_new_season(state)
 
 
 def _current_tier(state):
