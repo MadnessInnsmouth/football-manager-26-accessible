@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = collect_submodules('accessible_output2')
+hiddenimports = collect_submodules('accessible_output2') + collect_submodules('websocket')
 
 block_cipher = None
 
