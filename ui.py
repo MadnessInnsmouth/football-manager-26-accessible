@@ -1661,11 +1661,11 @@ class FootballManagerApp(wx.Frame):
     def _remove_player_listing(self, event=None):
         idx = self.sell_list.GetSelection()
         if idx == wx.NOT_FOUND:
-            speak("No player selected.")
+            speak("No player selected.", interrupt=False)
             return
         player = self._sell_players[idx]
         if not player.transfer_listed:
-            speak(f"{player.full_name} is not currently listed.")
+            speak(f"{player.full_name} is not currently listed.", interrupt=False)
             return
         player.transfer_listed = False
         player.asking_price_override = 0
@@ -1678,11 +1678,11 @@ class FootballManagerApp(wx.Frame):
     def _list_selected_player_for_sale(self, event):
         idx = self.sell_list.GetSelection()
         if idx == wx.NOT_FOUND:
-            speak("No player selected. Use arrow keys to select a player first.")
+            speak("No player selected. Use arrow keys to select a player first.", interrupt=False)
             return
         player = self._sell_players[idx]
         if player.transfer_listed:
-            speak(f"{player.full_name} is already listed for transfer.")
+            speak(f"{player.full_name} is already listed for transfer.", interrupt=False)
             wx.MessageBox(f"{player.full_name} is already listed. Use Remove Listing to delist first.", "Transfer Listing", wx.OK | wx.ICON_INFORMATION)
             return
         min_price = max(1000, player.value // 2)
@@ -1702,9 +1702,9 @@ class FootballManagerApp(wx.Frame):
         success, msg = game_engine.list_player_for_sale(self.game_state, player.id, int(asking))
         if success:
             self.autosave()
-            speak(f"{player.full_name} listed for transfer at {asking:,}.")
+            speak(f"{player.full_name} listed for transfer at {asking:,}.", interrupt=False)
         else:
-            speak(msg)
+            speak(msg, interrupt=False)
         wx.MessageBox(msg, "Transfer Listing", wx.OK | wx.ICON_INFORMATION)
         self.show_sell_player_screen()
 

@@ -593,7 +593,7 @@ def _play_fixture_native(state, fixture):
         if away is None:
             away = pool.get(fixture.away_id)
     if home is None or away is None:
-        raise KeyError(f"Club not found: home={fixture.home_id}, away={fixture.away_id}")
+        raise KeyError(f"Club IDs not found in available pools: home={fixture.home_id}, away={fixture.away_id}")
     return backend_bridge.simulate_match(home, away)
 
 
@@ -632,7 +632,7 @@ def _advance_knockout_competition(state, competition, week, results_by_pair):
                 add_inbox_message(state, f"Competition Won: {competition.name}", f"You have won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
             elif state.player_club_id in competition.club_ids:
                 winner_club = state.clubs.get(winner_id)
-                winner_name = winner_club.name if winner_club else winner_id
+                winner_name = winner_club.name if winner_club else "Unknown Club"
                 add_inbox_message(state, f"Competition Finished: {competition.name}", f"{winner_name} won the {competition.name}.", MessageType.COMPETITION, metadata={"competition_id": competition.id})
 
 
