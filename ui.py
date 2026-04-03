@@ -334,7 +334,7 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self.set_status("Log In")
         self.sizer.AddStretchSpacer()
-        self._add_section_heading("Log In to Football Manager 26")
+        self._add_section_heading("Log In to Football Manager 26", "Enter your username and password to sign in.")
         box = self._add_group(
             "Account Login",
             "Sign in with your account to access cloud saves, online multiplayer, and keep your career progress safe.",
@@ -406,7 +406,7 @@ class FootballManagerApp(wx.Frame):
         self.clear()
         self.set_status("Create Account")
         self.sizer.AddStretchSpacer()
-        self._add_section_heading("Create Your Account")
+        self._add_section_heading("Create Your Account", "Register a new account for cloud saves and multiplayer.")
         box = self._add_group(
             "New Account Registration",
             "Create a free account to unlock cloud saves and online multiplayer.\n"
